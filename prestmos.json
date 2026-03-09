@@ -1,0 +1,223 @@
+{
+  "info": {
+    "_postman_id": "f51f5852-73aa-4e61-84c6-3f0712b65a31",
+    "name": "Prestamos APP",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "23725569"
+  },
+  "item": [
+    {
+      "name": "Create User",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\":\"saul\",\n    \"lastName\":\"burgos\",\n    \"email\":\"saulburgos6@gmail.com\",\n    \"address\":\"santiago\",\n    \"password\":\"12345678\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/api/v1/user",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "api",
+            "v1",
+            "user"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create Loan",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiJ9.eyJzY29wZXMiOlsiW1JvbGVfVVNFUl0iXSwic3ViIjoic2F1bGJ1cmdvczZAZ21haWwuY29tIiwiaWF0IjoxNjg4NzYwOTcwLCJleHAiOjE2ODk5NzA1NzB9.QJDHWsRfp9-G-D-sR0Gmj33ILChynaxUm0tFgE0QjSU",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"amount\":12200,\n    \"paymentDate\":\"2023-06-23T18:38:03.448566\",\n    \"secondPaymenDate\":\"2023-06-30T18:38:03.448566\",\n    \"interest\":10.0,\n    \"amountOfPayments\":6,\n    \"frequency\":\"BIWEEKLY\",\n    \"clientId\":\"e5a23dc1-54d2-41e1-b59b-6a8b122f839d\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/api/v1/loan/payment-day",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "api",
+            "v1",
+            "loan",
+            "payment-day"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create client",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiJ9.eyJzY29wZXMiOlsiW1JvbGVfVVNFUl0iXSwic3ViIjoic2F1bGJ1cmdvczZAZ21haWwuY29tIiwiaWF0IjoxNjk3NTgzMTA5LCJleHAiOjE2OTg3OTI3MDl9.8uDgsu0QS8p-3qbs5PLP-IqUqVeg3Oz07fW1lU2dh8s",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\":\"jose\",\n    \"lastName\":\"burgos\",\n    \"email\":\"saulburgos6@gmail.com\",\n    \"phone\":\"8297571406\",\n    \"address\":\"santiago\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/api/v1/client",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "api",
+            "v1",
+            "client"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "login",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n\n    \"email\":\"saulburgos6@gmail.com\",\n    \"password\":\"12345678\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/api/v1/public/login",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "api",
+            "v1",
+            "public",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "transaction",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiJ9.eyJzY29wZXMiOlsiW1JvbGVfVVNFUl0iXSwic3ViIjoic2F1bGJ1cmdvczZAZ21haWwuY29tIiwiaWF0IjoxNjg4NzYwOTcwLCJleHAiOjE2ODk5NzA1NzB9.QJDHWsRfp9-G-D-sR0Gmj33ILChynaxUm0tFgE0QjSU",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"transactionType\":\"pay\",\n    \"amount\":4000,\n    \"loanId\":\"780b21f7-71c3-4d4b-8b75-4d60910111cc\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/api/v1/transaction/fdfe4da6-6751-455d-a158-7106b2ea7f77",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "api",
+            "v1",
+            "transaction",
+            "fdfe4da6-6751-455d-a158-7106b2ea7f77"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "health-check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/v1/health-check",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "api",
+            "v1",
+            "health-check"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

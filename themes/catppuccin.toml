@@ -1,0 +1,35 @@
+[colors]
+background = "#1E1E2E"
+foreground = "#CDD6F4"
+accent = "#89B4FA"
+success = "#A6E3A1"
+warning = "#F9E2AF"
+error = "#F38BA8"
+muted = "#6C7086"
+
+[colors.methods]
+get = "#A6E3A1"
+post = "#F9E2AF"
+put = "#89B4FA"
+patch = "#CBA6F7"
+delete = "#F38BA8"
+head = "#94E2D5"
+options = "#F5C2E7"
+
+[colors.status]
+info = "#89B4FA"
+success = "#A6E3A1"
+redirect = "#F9E2AF"
+client_error = "#FAB387"
+server_error = "#F38BA8"
+
+[borders]
+style = "rounded"
+sidebar_width = 25
+
+[syntax]
+json_key = "#89B4FA"
+json_string = "#A6E3A1"
+json_number = "#FAB387"
+json_boolean = "#CBA6F7"
+json_null = "#6C7086"
