@@ -118,7 +118,7 @@ pub async fn run_load_test(
     request: &Request,
     _resolver: &VariableResolver,
 ) -> Result<LoadTestResult> {
-    let _client = HttpClient::new()?;
+    let client = Arc::new(HttpClient::new()?);
     let results = Arc::new(Mutex::new(Vec::new()));
     let start = Instant::now();
 
@@ -127,7 +127,7 @@ pub async fn run_load_test(
 
     for _ in 0..config.total_requests {
         let permit = semaphore.clone().acquire_owned().await?;
-        let client_clone = HttpClient::new()?;
+        let client_clone = client.clone();
         let request_clone = request.clone();
         let resolver_clone = VariableResolver::new(); // simplified for load test
         let results_clone = results.clone();

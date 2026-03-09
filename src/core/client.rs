@@ -50,11 +50,19 @@ impl HttpClient {
         let headers = resolver.resolve_headers(&request.headers);
         let mut header_map = HeaderMap::new();
         for h in &headers {
-            if let (Ok(name), Ok(value)) = (
+            match (
                 HeaderName::from_bytes(h.key.as_bytes()),
                 HeaderValue::from_str(&h.value),
             ) {
-                header_map.insert(name, value);
+                (Ok(name), Ok(value)) => {
+                    header_map.insert(name, value);
+                }
+                (Err(e), _) => {
+                    tracing::warn!("Skipping invalid header name '{}': {}", h.key, e);
+                }
+                (_, Err(e)) => {
+                    tracing::warn!("Skipping invalid header value for '{}': {}", h.key, e);
+                }
             }
         }
         req_builder = req_builder.headers(header_map);

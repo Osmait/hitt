@@ -31,7 +31,7 @@ pub fn handle_ws_protocol_event(app: &mut App, session_id: Uuid, event: WsEventD
             tab.ws_cmd_sender = None;
         }
         WsEventData::MessageReceived(msg) => {
-            session.messages.push(msg);
+            session.push_message(msg);
             // Auto-scroll if at or near bottom
             let len = session.messages.len();
             if tab.ws_message_scroll >= len.saturating_sub(2) {
@@ -70,9 +70,7 @@ pub fn handle_sse_protocol_event(app: &mut App, session_id: Uuid, event: SseEven
             if let Some(ref id) = evt.id {
                 session.last_event_id = Some(id.clone());
             }
-            session.accumulated_text.push_str(&evt.data);
-            session.accumulated_text.push('\n');
-            session.events.push(evt);
+            session.push_event(evt);
             // Auto-scroll
             let len = session.events.len();
             if tab.sse_event_scroll >= len.saturating_sub(2) {

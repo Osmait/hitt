@@ -5,6 +5,9 @@ use uuid::Uuid;
 
 use crate::core::request::KeyValuePair;
 
+const MAX_EVENTS: usize = 1000;
+const MAX_ACCUMULATED_BYTES: usize = 512 * 1024; // 512 KB
+
 #[derive(Debug, Clone)]
 pub struct SseSession {
     pub id: Uuid,
@@ -33,6 +36,22 @@ impl SseSession {
 
     pub fn event_count(&self) -> usize {
         self.events.len()
+    }
+
+    pub fn push_event(&mut self, evt: SseEvent) {
+        self.accumulated_text.push_str(&evt.data);
+        self.accumulated_text.push('\n');
+        if self.accumulated_text.len() > MAX_ACCUMULATED_BYTES {
+            let drain = self.accumulated_text.len() - MAX_ACCUMULATED_BYTES;
+            let boundary = self.accumulated_text[drain..]
+                .find('\n')
+                .map_or(drain, |p| drain + p + 1);
+            self.accumulated_text.drain(..boundary);
+        }
+        if self.events.len() >= MAX_EVENTS {
+            self.events.drain(..MAX_EVENTS / 4);
+        }
+        self.events.push(evt);
     }
 }
 
@@ -86,7 +105,18 @@ pub fn connect(
             }
         }
 
-        match request.send().await {
+        let send_result = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            request.send(),
+        )
+        .await;
+
+        let Ok(send_result) = send_result else {
+            let _ = event_tx.send(SseOutput::Error("Connection timed out (30s)".into()));
+            return;
+        };
+
+        match send_result {
             Ok(response) => {
                 if !response.status().is_success() {
                     let _ = event_tx.send(SseOutput::Error(format!("HTTP {}", response.status())));

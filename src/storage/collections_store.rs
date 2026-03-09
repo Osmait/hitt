@@ -1,8 +1,20 @@
 use anyhow::Result;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::core::collection::Collection;
 use crate::core::environment::Environment;
+
+/// Write to a temp file in the same directory, then atomically rename.
+/// This prevents data corruption if the process crashes mid-write.
+fn atomic_write(path: &Path, content: &[u8]) -> Result<()> {
+    let dir = path.parent().unwrap_or(Path::new("."));
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    tmp.write_all(content)?;
+    tmp.flush()?;
+    tmp.persist(path)?;
+    Ok(())
+}
 
 pub struct CollectionsStore {
     dir: PathBuf,
@@ -40,7 +52,7 @@ impl CollectionsStore {
         let filename = sanitize_filename(&collection.name);
         let path = self.dir.join(format!("{filename}.json"));
         let content = serde_json::to_string_pretty(collection)?;
-        std::fs::write(&path, content)?;
+        atomic_write(&path, content.as_bytes())?;
         Ok(path)
     }
 
@@ -87,7 +99,7 @@ impl CollectionsStore {
         let filename = sanitize_filename(&env.name);
         let path = dir.join(format!("{filename}.json"));
         let content = serde_json::to_string_pretty(env)?;
-        std::fs::write(&path, content)?;
+        atomic_write(&path, content.as_bytes())?;
         Ok(path)
     }
 }

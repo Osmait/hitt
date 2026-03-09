@@ -126,15 +126,18 @@ pub fn extract_values(
     extractions: &[ValueExtraction],
     response: &Response,
 ) -> HashMap<String, String> {
+    use jsonpath_rust::JsonPath;
+
     let mut result = HashMap::new();
+    // Parse body JSON once for all extractions that need it
+    let body_json = response.body_json();
+
     for extraction in extractions {
         let value = match &extraction.source {
             ExtractionSource::Body => {
-                // Use JSONPath to extract from body
-                if let Some(json) = response.body_json() {
-                    use jsonpath_rust::JsonPath;
+                if let Some(ref json) = body_json {
                     if let Ok(jsonpath) = extraction.json_path.parse::<JsonPath>() {
-                        let found = jsonpath.find(&json);
+                        let found = jsonpath.find(json);
                         if found.is_null() {
                             None
                         } else if let serde_json::Value::Array(arr) = &found {

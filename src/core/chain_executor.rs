@@ -56,9 +56,7 @@ pub async fn execute_chain(
         }
 
         // Find request
-        let request = if let Some(req) = collection.find_request(&step.request_id) {
-            req.clone()
-        } else {
+        let Some(request) = collection.find_request(&step.request_id) else {
             let outcome = StepOutcome::Failed {
                 step_index,
                 error: format!("Request {} not found in collection", step.request_id),
@@ -79,25 +77,25 @@ pub async fn execute_chain(
         );
 
         // Send request
-        match client.send(&request, &resolver).await {
+        match client.send(request, &resolver).await {
             Ok(response) => {
                 let status = response.status;
                 let duration_ms = response.timing.total.as_millis() as u64;
 
                 // Extract values
                 let new_vars = extract_values(&step.extractions, &response);
-                extracted_variables.extend(new_vars.clone());
 
                 let outcome = StepOutcome::Success {
                     step_index,
                     request_name,
                     status,
                     duration_ms,
-                    extracted: new_vars,
+                    extracted: new_vars.clone(),
                     response: response.clone(),
                 };
                 on_step(&outcome);
 
+                extracted_variables.extend(new_vars);
                 last_response = Some(response);
             }
             Err(e) => {

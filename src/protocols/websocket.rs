@@ -7,6 +7,8 @@ use uuid::Uuid;
 
 use crate::core::request::KeyValuePair;
 
+const MAX_MESSAGES: usize = 1000;
+
 #[derive(Debug, Clone)]
 pub struct WebSocketSession {
     pub id: Uuid,
@@ -29,6 +31,13 @@ impl WebSocketSession {
             auto_reconnect: false,
             ping_interval: None,
         }
+    }
+
+    pub fn push_message(&mut self, msg: WsMessage) {
+        if self.messages.len() >= MAX_MESSAGES {
+            self.messages.drain(..MAX_MESSAGES / 4);
+        }
+        self.messages.push(msg);
     }
 }
 
@@ -112,7 +121,16 @@ pub async fn connect(
             return;
         }
 
-        let connect_result = tokio_tungstenite::connect_async(&url).await;
+        let connect_result = tokio::time::timeout(
+            Duration::from_secs(30),
+            tokio_tungstenite::connect_async(&url),
+        )
+        .await;
+
+        let Ok(connect_result) = connect_result else {
+            let _ = event_tx.send(WsEvent::Error("Connection timed out (30s)".into()));
+            return;
+        };
 
         match connect_result {
             Ok((ws_stream, _)) => {

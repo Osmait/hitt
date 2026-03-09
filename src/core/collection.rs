@@ -110,7 +110,7 @@ impl Collection {
     }
 
     pub fn request_count(&self) -> usize {
-        self.all_requests().len()
+        self.iter_requests().count()
     }
 
     /// Stack-based iterator over all requests in the collection.

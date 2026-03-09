@@ -12,7 +12,7 @@ crossterm = "0.28"
 tui-textarea = "0.7"
 
 # Async
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "io-util"] }
 
 # HTTP
 reqwest = { version = "0.12", features = ["json", "cookies", "multipart", "rustls-tls", "stream"] }
@@ -43,9 +43,6 @@ jsonschema = "0.26"
 # Syntax highlighting
 syntect = "5"
 
-# Storage
-sled = "0.34"
-
 # Diff
 similar = { version = "2", features = ["inline"] }
 
@@ -72,9 +69,23 @@ http = "1"
 futures-util = "0.3"
 tokio-stream = "0.1"
 bytes = "1"
+tempfile = "3"
+
+[features]
+dhat-heap = []
 
 [dev-dependencies]
 tempfile = "3"
+criterion = { version = "0.5", features = ["async_tokio"] }
+dhat = "0.3"
+
+[[bench]]
+name = "http_bench"
+harness = false
+
+[[bench]]
+name = "core_bench"
+harness = false
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
@@ -93,3 +104,16 @@ module_name_repetitions = "allow"
 doc_markdown = "allow"
 too_many_lines = "allow"
 struct_excessive_bools = "allow"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+
+# For profiling: cargo build --profile release-with-debug
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+strip = false

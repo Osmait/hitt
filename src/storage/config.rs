@@ -108,7 +108,10 @@ impl AppConfig {
             std::fs::create_dir_all(parent)?;
         }
         let content = toml::to_string_pretty(self)?;
-        std::fs::write(&path, content)?;
+        let mut tmp = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new(".")))?;
+        std::io::Write::write_all(&mut tmp, content.as_bytes())?;
+        std::io::Write::flush(&mut tmp)?;
+        tmp.persist(&path)?;
         Ok(())
     }
 }
