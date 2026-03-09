@@ -109,6 +109,7 @@ fn mode_display(mode: &AppMode, nav_mode: NavMode, theme: &Theme) -> (String, St
                 ModalKind::CollectionPicker => " PICK COLLECTION ",
                 ModalKind::RenameCollection(_) => " RENAME COLLECTION ",
                 ModalKind::RenameRequest { .. } => " RENAME REQUEST ",
+                ModalKind::ThemePicker => " THEME ",
             };
             (
                 label.to_string(),
@@ -165,6 +166,7 @@ fn mode_display_label(mode: &AppMode, nav_mode: NavMode) -> (&'static str, ()) {
                 ModalKind::CollectionPicker => " PICK COLLECTION ",
                 ModalKind::RenameCollection(_) => " RENAME COLLECTION ",
                 ModalKind::RenameRequest { .. } => " RENAME REQUEST ",
+                ModalKind::ThemePicker => " THEME ",
             };
             (label, ())
         }

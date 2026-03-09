@@ -53,6 +53,9 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     app.regions.status_bar = Some(root_chunks[2]);
     render_status_bar(app, frame, root_chunks[2]);
 
+    // URL preview tooltip (overlaid above status bar when sidebar is focused).
+    render_url_preview_tooltip(app, frame, size);
+
     // Notification toast (overlaid on top-right corner).
     if let Some(ref notification) = app.notification {
         render_notification(app, frame, notification, size);
@@ -280,6 +283,92 @@ fn render_sidebar_panel(app: &mut App, frame: &mut Frame, area: Rect) {
 
     // Delegate actual content rendering to the sidebar widget module.
     crate::ui::widgets::sidebar::render(app, frame, sidebar_chunks[1]);
+}
+
+/// Resolves the URL and method of the currently selected sidebar item, if it's a request.
+fn resolve_sidebar_preview(app: &App) -> Option<(String, String)> {
+    if app.sidebar_state.section == SidebarSection::Collections {
+        let items = crate::event::build_sidebar_items(app);
+        if let Some(crate::event::SidebarItem::Request {
+            coll_idx,
+            request_id,
+        }) = items.get(app.sidebar_state.selected)
+        {
+            if let Some(coll) = app.collections.get(*coll_idx) {
+                if let Some(req) = coll.find_request(request_id) {
+                    let label = match &req.protocol {
+                        crate::core::request::Protocol::WebSocket => "WS".to_string(),
+                        crate::core::request::Protocol::Sse => "SSE".to_string(),
+                        crate::core::request::Protocol::Grpc { .. } => "gRPC".to_string(),
+                        crate::core::request::Protocol::Http => req.method.as_str().to_string(),
+                    };
+                    return Some((label, req.url.clone()));
+                }
+            }
+        }
+    } else if app.sidebar_state.section == SidebarSection::History {
+        let entries = app.history.entries();
+        if let Some(entry) = entries.get(app.sidebar_state.selected) {
+            return Some((entry.method.as_str().to_string(), entry.url.clone()));
+        }
+    }
+    None
+}
+
+/// Renders a floating URL preview tooltip above the status bar when a request is
+/// selected in the sidebar.  The tooltip spans enough width for the full URL.
+fn render_url_preview_tooltip(app: &App, frame: &mut Frame, screen: Rect) {
+    // Only show when sidebar is focused.
+    if app.focus != FocusArea::Sidebar {
+        return;
+    }
+
+    let Some((method, url)) = resolve_sidebar_preview(app) else {
+        return;
+    };
+
+    let theme = &app.theme;
+    let method_enum: crate::core::request::HttpMethod =
+        method.parse().unwrap_or(crate::core::request::HttpMethod::GET);
+
+    let content = format!("{method} {url}");
+    // Tooltip width: content + 2 padding + 2 border, capped to screen width.
+    let tooltip_width = (content.len() as u16 + 4).min(screen.width.saturating_sub(2));
+    let tooltip_height = 3_u16;
+
+    // Position: bottom-left, just above the status bar (last row).
+    let tooltip_area = Rect::new(
+        0,
+        screen.height.saturating_sub(tooltip_height + 1),
+        tooltip_width,
+        tooltip_height,
+    );
+
+    frame.render_widget(Clear, tooltip_area);
+
+    let prefix = format!("{method} ");
+    let inner_width = (tooltip_width.saturating_sub(4)) as usize;
+    let url_space = inner_width.saturating_sub(prefix.len());
+    let url_display = if url.len() > url_space {
+        format!("{}…", &url[..url_space.saturating_sub(1)])
+    } else {
+        url.clone()
+    };
+
+    let line = Line::from(vec![
+        Span::styled(prefix, theme.method_style(&method_enum)),
+        Span::styled(url_display, Style::default().fg(theme.colors.foreground)),
+    ]);
+
+    let tooltip = Paragraph::new(line).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_set(theme.border_set())
+            .border_style(Style::default().fg(theme.colors.muted))
+            .style(Style::default().bg(theme.colors.background)),
+    );
+
+    frame.render_widget(tooltip, tooltip_area);
 }
 
 fn render_sidebar_section_tabs(app: &mut App, frame: &mut Frame, area: Rect) {
@@ -630,6 +719,29 @@ fn render_key_value_table(
 // Response tab bar
 // ---------------------------------------------------------------------------
 
+/// Renders the inline filter bar at the top of the response body area.
+fn render_response_filter_bar(app: &App, frame: &mut Frame, area: Rect) {
+    let theme = &app.theme;
+    let query = &app.response_filter;
+    let is_typing = app.response_filter_active;
+
+    let cursor = if is_typing { "_" } else { "" };
+    let label = format!("/{query}{cursor}");
+
+    let style = if is_typing {
+        Style::default()
+            .fg(theme.colors.foreground)
+            .bg(theme.colors.accent)
+    } else {
+        Style::default()
+            .fg(theme.colors.foreground)
+            .bg(theme.colors.muted)
+    };
+
+    let bar = Paragraph::new(Span::styled(label, style));
+    frame.render_widget(bar, area);
+}
+
 fn render_response_tab_bar(app: &mut App, frame: &mut Frame, area: Rect) {
     use crate::core::request::Protocol;
 
@@ -803,16 +915,12 @@ fn render_response_area(app: &mut App, frame: &mut Frame, area: Rect) {
 }
 
 fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
-    let scroll_offset = app.response_scroll;
-
-    let theme = &app.theme;
-    let tab = app.active_tab();
     let focused = app.focus == FocusArea::ResponseBody;
-
     let border_style = border_style_for(app, focused);
+    let theme = app.theme.clone();
 
     let title = if focused {
-        " Response [j/k scroll] "
+        " Response [j/k scroll, / filter] "
     } else {
         " Response "
     };
@@ -828,38 +936,122 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let Some(ref response) = tab.response else {
+    let has_response = app.active_tab().response.is_some();
+    if !has_response {
         let empty = Paragraph::new("Send a request to see the response here.")
             .style(theme.muted_style())
             .alignment(Alignment::Center);
         frame.render_widget(empty, inner);
         return;
-    };
+    }
 
-    match tab.response_tab {
+    // Filter bar: show when filter is active (typing) or has text (browsing matches).
+    let filter_query = app.response_filter.clone();
+    let show_filter = app.response_filter_active || !filter_query.is_empty();
+    let filter_height = u16::from(show_filter);
+
+    let content_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(filter_height), Constraint::Min(0)])
+        .split(inner);
+
+    if show_filter {
+        render_response_filter_bar(app, frame, content_chunks[0]);
+    }
+
+    let content_area = content_chunks[1];
+    let response_tab = app.active_tab().response_tab;
+    let scroll_offset = app.response_scroll;
+
+    match response_tab {
         ResponseTabKind::Body => {
-            let body = response.body_text().unwrap_or("[binary data]");
-            // Try JSON syntax highlighting first
-            let content_type = response.header_value("content-type").unwrap_or("");
-            let is_json = content_type.contains("json")
-                || body.trim_start().starts_with('{')
-                || body.trim_start().starts_with('[');
+            // Build rendered lines first, then compute filter matches on the rendered text.
+            let (body, is_json) = {
+                let response = app.active_tab().response.as_ref().unwrap();
+                let body_str = response.body_text().unwrap_or("[binary data]").to_string();
+                let ct = response.header_value("content-type").unwrap_or("").to_string();
+                let is_json = ct.contains("json")
+                    || body_str.trim_start().starts_with('{')
+                    || body_str.trim_start().starts_with('[');
+                (body_str, is_json)
+            };
 
-            let paragraph = if is_json {
-                let lines = crate::utils::pretty_print::highlight_json(
-                    body,
+            let mut lines: Vec<Line> = if is_json {
+                crate::utils::pretty_print::highlight_json(
+                    &body,
                     &theme.colors.syntax,
                     theme.colors.foreground,
-                );
-                Paragraph::new(lines).scroll((scroll_offset as u16, 0))
+                )
             } else {
-                Paragraph::new(crate::utils::pretty_print::pretty_xml(body))
-                    .style(Style::default().fg(theme.colors.foreground))
-                    .scroll((scroll_offset as u16, 0))
+                crate::utils::pretty_print::pretty_xml(&body)
+                    .lines()
+                    .map(|l| Line::from(Span::styled(l.to_string(), Style::default().fg(theme.colors.foreground))))
+                    .collect()
             };
-            frame.render_widget(paragraph, inner);
+
+            // Compute filter matches on the actual rendered lines.
+            let filter_lower = filter_query.to_lowercase();
+            let has_filter = !filter_lower.is_empty();
+
+            let match_lines: Vec<usize> = if has_filter {
+                lines
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, line)| {
+                        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+                        text.to_lowercase().contains(&filter_lower)
+                    })
+                    .map(|(i, _)| i)
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            // Clamp match index and auto-scroll to current match.
+            if has_filter && !match_lines.is_empty() {
+                let match_idx = app
+                    .response_filter_match_idx
+                    .min(match_lines.len().saturating_sub(1));
+                app.response_filter_match_idx = match_idx;
+                let target_line = match_lines[match_idx];
+                let visible_height = content_area.height as usize;
+                if target_line < app.response_scroll
+                    || target_line >= app.response_scroll + visible_height
+                {
+                    app.response_scroll = target_line.saturating_sub(visible_height / 4);
+                }
+            }
+            let scroll_offset = app.response_scroll;
+
+            // Highlight matching lines with a background tint.
+            if has_filter {
+                let current_match = if match_lines.is_empty() {
+                    None
+                } else {
+                    Some(match_lines[app.response_filter_match_idx])
+                };
+                for &line_idx in &match_lines {
+                    if let Some(line) = lines.get_mut(line_idx) {
+                        let bg = if Some(line_idx) == current_match {
+                            theme.colors.accent
+                        } else {
+                            theme.colors.muted
+                        };
+                        let spans: Vec<Span> = line
+                            .spans
+                            .iter()
+                            .map(|s| Span::styled(s.content.clone(), s.style.bg(bg)))
+                            .collect();
+                        *line = Line::from(spans);
+                    }
+                }
+            }
+
+            let paragraph = Paragraph::new(lines).scroll((scroll_offset as u16, 0));
+            frame.render_widget(paragraph, content_area);
         }
         ResponseTabKind::Headers => {
+            let response = app.active_tab().response.as_ref().unwrap();
             let lines: Vec<Line> = response
                 .headers
                 .iter()
@@ -878,16 +1070,17 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                 .collect();
             if lines.is_empty() {
                 let p = Paragraph::new("No headers").style(theme.muted_style());
-                frame.render_widget(p, inner);
+                frame.render_widget(p, content_area);
             } else {
                 let p = Paragraph::new(lines).scroll((scroll_offset as u16, 0));
-                frame.render_widget(p, inner);
+                frame.render_widget(p, content_area);
             }
         }
         ResponseTabKind::Cookies => {
+            let response = app.active_tab().response.as_ref().unwrap();
             if response.cookies.is_empty() {
                 let p = Paragraph::new("No cookies").style(theme.muted_style());
-                frame.render_widget(p, inner);
+                frame.render_widget(p, content_area);
             } else {
                 let lines: Vec<Line> = response
                     .cookies
@@ -907,11 +1100,12 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                     .collect();
                 frame.render_widget(
                     Paragraph::new(lines).scroll((scroll_offset as u16, 0)),
-                    inner,
+                    content_area,
                 );
             }
         }
         ResponseTabKind::Timing => {
+            let response = app.active_tab().response.as_ref().unwrap();
             let timing = &response.timing;
             let lines = vec![
                 Line::from(vec![
@@ -968,12 +1162,13 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                     ),
                 ]),
             ];
-            frame.render_widget(Paragraph::new(lines), inner);
+            frame.render_widget(Paragraph::new(lines), content_area);
         }
         ResponseTabKind::Assertions => {
+            let response = app.active_tab().response.as_ref().unwrap();
             if response.assertion_results.is_empty() {
                 let p = Paragraph::new("No assertion results").style(theme.muted_style());
-                frame.render_widget(p, inner);
+                frame.render_widget(p, content_area);
             } else {
                 let lines: Vec<Line> = response
                     .assertion_results
@@ -990,7 +1185,7 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                         ])
                     })
                     .collect();
-                frame.render_widget(Paragraph::new(lines), inner);
+                frame.render_widget(Paragraph::new(lines), content_area);
             }
         }
         // WS/SSE tabs handled by their own renderers; should not reach here.
@@ -1585,6 +1780,7 @@ fn render_modal(app: &App, frame: &mut Frame, kind: &ModalKind, area: Rect) {
             (40, 15)
         }
         ModalKind::CollectionPicker => (50, 50),
+        ModalKind::ThemePicker => (45, 35),
     };
 
     let modal_area = centered_rect(width_pct, height_pct, area);
@@ -1595,6 +1791,7 @@ fn render_modal(app: &App, frame: &mut Frame, kind: &ModalKind, area: Rect) {
         ModalKind::Search => render_search_modal(app, frame, modal_area),
         ModalKind::RenameTab => render_rename_modal(app, frame, modal_area),
         ModalKind::CollectionPicker => render_collection_picker_modal(app, frame, modal_area),
+        ModalKind::ThemePicker => render_theme_picker_modal(app, frame, modal_area),
         ModalKind::RenameCollection(_) => render_rename_collection_modal(app, frame, modal_area),
         ModalKind::RenameRequest { .. } => render_rename_request_modal(app, frame, modal_area),
         ModalKind::Confirm(msg) => render_confirm_modal(app, frame, modal_area, msg),
@@ -2020,6 +2217,73 @@ fn render_collection_picker_modal(app: &App, frame: &mut Frame, area: Rect) {
                     coll.name,
                     coll.request_count()
                 ),
+                style,
+            )))
+        })
+        .collect();
+
+    let list = ratatui::widgets::List::new(items);
+    frame.render_widget(list, chunks[1]);
+
+    let hint = Paragraph::new(Span::styled(
+        "  j/k:navigate  Enter:select  Esc:cancel",
+        theme.muted_style(),
+    ));
+    frame.render_widget(hint, chunks[2]);
+}
+
+fn render_theme_picker_modal(app: &App, frame: &mut Frame, area: Rect) {
+    let theme = &app.theme;
+
+    let block = Block::default()
+        .title(Span::styled(
+            " Select Theme ",
+            Style::default()
+                .fg(theme.colors.accent)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::ALL)
+        .border_set(theme.border_set())
+        .border_style(theme.focused_border_style())
+        .style(Style::default().bg(theme.colors.background));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(1),
+        ])
+        .split(inner);
+
+    let label = Paragraph::new(Span::styled("  Choose a theme:", theme.muted_style()));
+    frame.render_widget(label, chunks[0]);
+
+    let config_theme = app.config.theme.as_str();
+    let items: Vec<ratatui::widgets::ListItem> = crate::ui::theme::AVAILABLE_THEMES
+        .iter()
+        .enumerate()
+        .map(|(i, &name)| {
+            let marker = if i == app.theme_picker_selected {
+                "> "
+            } else {
+                "  "
+            };
+            let current = if name == config_theme {
+                " (current)"
+            } else {
+                ""
+            };
+            let style = if i == app.theme_picker_selected {
+                theme.selected_style()
+            } else {
+                Style::default().fg(theme.colors.foreground)
+            };
+            ratatui::widgets::ListItem::new(Line::from(Span::styled(
+                format!("{marker}{name}{current}"),
                 style,
             )))
         })

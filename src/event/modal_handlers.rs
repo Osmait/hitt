@@ -11,6 +11,19 @@ pub(super) async fn handle_modal_mode(
     key: KeyEvent,
     kind: &ModalKind,
 ) -> Result<()> {
+    // ThemePicker needs special Esc handling to restore the previous theme.
+    if *kind == ModalKind::ThemePicker {
+        if key.code == KeyCode::Esc {
+            if let Some(prev) = app.theme_before_preview.take() {
+                app.theme = prev;
+            }
+            app.mode = AppMode::Normal;
+            return Ok(());
+        }
+        handle_theme_picker_modal(app, key);
+        return Ok(());
+    }
+
     match key.code {
         KeyCode::Esc => {
             app.mode = AppMode::Normal;
@@ -242,6 +255,44 @@ fn handle_export_modal(app: &mut App, key: KeyEvent) {
             app.modal_input.clear();
         }
         _ => {}
+    }
+}
+
+fn handle_theme_picker_modal(app: &mut App, key: KeyEvent) {
+    let themes = crate::ui::theme::AVAILABLE_THEMES;
+    let max = themes.len().saturating_sub(1);
+
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => {
+            app.theme_picker_selected = (app.theme_picker_selected + 1).min(max);
+            apply_theme_preview(app);
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.theme_picker_selected = app.theme_picker_selected.saturating_sub(1);
+            apply_theme_preview(app);
+        }
+        KeyCode::Enter => {
+            let name = themes[app.theme_picker_selected];
+            app.config.theme = name.into();
+            let _ = app.config.save();
+            app.theme_before_preview = None;
+            app.mode = AppMode::Normal;
+            app.notify(format!("Theme: {name}"), NotificationKind::Info);
+        }
+        _ => {}
+    }
+}
+
+fn apply_theme_preview(app: &mut App) {
+    let name = crate::ui::theme::AVAILABLE_THEMES[app.theme_picker_selected];
+    if let Ok(mut theme) = crate::ui::theme::Theme::load(name) {
+        if let Some(ref colors) = app.config.colors {
+            theme.apply_overrides(colors);
+        }
+        if let Some(ref borders) = app.config.borders {
+            theme.apply_border_overrides(borders);
+        }
+        app.theme = theme;
     }
 }
 

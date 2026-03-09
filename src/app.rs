@@ -94,9 +94,14 @@ pub struct App {
     pub loading: bool,
     pub regions: ClickableRegions,
     pub response_scroll: usize,
+    pub response_filter: String,
+    pub response_filter_active: bool,
+    pub response_filter_match_idx: usize,
     pub rename_input: String,
     pub modal_input: String,
     pub collection_picker_selected: usize,
+    pub theme_picker_selected: usize,
+    pub theme_before_preview: Option<Theme>,
     // Event sender for protocol bridge tasks
     pub event_sender: Option<mpsc::UnboundedSender<crate::event::AppEvent>>,
 }
@@ -135,9 +140,14 @@ impl App {
             loading: false,
             regions: ClickableRegions::default(),
             response_scroll: 0,
+            response_filter: String::new(),
+            response_filter_active: false,
+            response_filter_match_idx: 0,
             rename_input: String::new(),
             modal_input: String::new(),
             collection_picker_selected: 0,
+            theme_picker_selected: 0,
+            theme_before_preview: None,
             event_sender: None,
         })
     }
@@ -802,6 +812,7 @@ pub enum ModalKind {
         coll_idx: usize,
         request_id: uuid::Uuid,
     },
+    ThemePicker,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

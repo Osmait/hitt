@@ -69,7 +69,13 @@ pub async fn execute_command(app: &mut App, cmd: &str) -> Result<()> {
         "theme" => {
             if let Some(name) = args {
                 match crate::ui::theme::Theme::load(name) {
-                    Ok(theme) => {
+                    Ok(mut theme) => {
+                        if let Some(ref colors) = app.config.colors {
+                            theme.apply_overrides(colors);
+                        }
+                        if let Some(ref borders) = app.config.borders {
+                            theme.apply_border_overrides(borders);
+                        }
                         app.theme = theme;
                         app.notify(format!("Theme: {name}"), NotificationKind::Info);
                     }
@@ -77,6 +83,14 @@ pub async fn execute_command(app: &mut App, cmd: &str) -> Result<()> {
                         app.notify(format!("Theme '{name}' not found"), NotificationKind::Error);
                     }
                 }
+            } else {
+                // No args — open theme picker modal
+                app.theme_before_preview = Some(app.theme.clone());
+                app.theme_picker_selected = crate::ui::theme::AVAILABLE_THEMES
+                    .iter()
+                    .position(|&t| t == app.theme.name)
+                    .unwrap_or(0);
+                app.mode = AppMode::Modal(ModalKind::ThemePicker);
             }
         }
         "import" => {
@@ -247,7 +261,13 @@ pub async fn execute_command(app: &mut App, cmd: &str) -> Result<()> {
                             }
                         }
                         "theme" => match crate::ui::theme::Theme::load(val) {
-                            Ok(theme) => {
+                            Ok(mut theme) => {
+                                if let Some(ref colors) = app.config.colors {
+                                    theme.apply_overrides(colors);
+                                }
+                                if let Some(ref borders) = app.config.borders {
+                                    theme.apply_border_overrides(borders);
+                                }
                                 app.config.theme = val.into();
                                 app.theme = theme;
                                 app.notify(format!("theme = {val}"), NotificationKind::Success);
