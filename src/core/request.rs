@@ -118,17 +118,40 @@ impl HttpMethod {
         ]
     }
 
+    #[deprecated(note = "Use std::str::FromStr trait implementation instead")]
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
+
+impl std::str::FromStr for HttpMethod {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
-            "GET" => Some(Self::GET),
-            "POST" => Some(Self::POST),
-            "PUT" => Some(Self::PUT),
-            "PATCH" => Some(Self::PATCH),
-            "DELETE" => Some(Self::DELETE),
-            "HEAD" => Some(Self::HEAD),
-            "OPTIONS" => Some(Self::OPTIONS),
-            "TRACE" => Some(Self::TRACE),
-            _ => None,
+            "GET" => Ok(Self::GET),
+            "POST" => Ok(Self::POST),
+            "PUT" => Ok(Self::PUT),
+            "PATCH" => Ok(Self::PATCH),
+            "DELETE" => Ok(Self::DELETE),
+            "HEAD" => Ok(Self::HEAD),
+            "OPTIONS" => Ok(Self::OPTIONS),
+            "TRACE" => Ok(Self::TRACE),
+            _ => Err(format!("Invalid HTTP method: '{s}'")),
+        }
+    }
+}
+
+impl std::fmt::Display for Protocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Http => write!(f, "HTTP"),
+            Self::WebSocket => write!(f, "WebSocket"),
+            Self::Sse => write!(f, "SSE"),
+            Self::Grpc {
+                service, method, ..
+            } => write!(f, "gRPC ({service}/{method})"),
         }
     }
 }
@@ -162,14 +185,12 @@ pub enum RequestBody {
 impl RequestBody {
     pub fn content_type(&self) -> Option<&str> {
         match self {
-            Self::Json(_) => Some("application/json"),
+            Self::Json(_) | Self::GraphQL { .. } => Some("application/json"),
             Self::FormUrlEncoded(_) => Some("application/x-www-form-urlencoded"),
-            Self::FormData(_) => None, // multipart boundary set by client
+            Self::FormData(_) | Self::None => None,
             Self::Raw { content_type, .. } => Some(content_type.as_str()),
             Self::Binary(_) => Some("application/octet-stream"),
-            Self::GraphQL { .. } => Some("application/json"),
             Self::Protobuf { .. } => Some("application/grpc"),
-            Self::None => None,
         }
     }
 }

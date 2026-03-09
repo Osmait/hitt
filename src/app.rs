@@ -12,7 +12,7 @@ use crate::core::request::{HttpMethod, Request};
 use crate::core::response::Response;
 use crate::core::variables::VariableResolver;
 use crate::protocols::sse::{SseCommand, SseSession};
-use crate::protocols::websocket::{WsCommand, WebSocketSession};
+use crate::protocols::websocket::{WebSocketSession, WsCommand};
 use crate::storage::config::AppConfig;
 use crate::ui::theme::Theme;
 
@@ -32,12 +32,12 @@ pub struct ClickableRegions {
     pub response_tabs: Vec<(Rect, ResponseTabKind)>,
     pub response_body: Option<Rect>,
     pub ws_input_bar: Option<Rect>,
-    pub header_tabs: Vec<(Rect, usize)>,       // (rect, tab_index)
+    pub header_tabs: Vec<(Rect, usize)>, // (rect, tab_index)
     pub new_tab_button: Option<Rect>,
     pub env_selector: Option<Rect>,
     pub sidebar_section_tabs: Vec<(Rect, SidebarSection)>,
-    pub sidebar_items: Vec<Rect>,              // one per visible sidebar row
-    pub search_results_items: Vec<Rect>,       // one per visible search result
+    pub sidebar_items: Vec<Rect>,        // one per visible sidebar row
+    pub search_results_items: Vec<Rect>, // one per visible search result
     pub status_bar: Option<Rect>,
 }
 
@@ -192,20 +192,18 @@ impl App {
 
     pub fn build_resolver(&self) -> VariableResolver {
         let tab = self.active_tab();
-        let collection_vars: &[crate::core::request::KeyValuePair] = if let Some(coll_idx) = tab.collection_index {
-            if let Some(coll) = self.collections.get(coll_idx) {
-                &coll.variables
+        let collection_vars: &[crate::core::request::KeyValuePair] =
+            if let Some(coll_idx) = tab.collection_index {
+                if let Some(coll) = self.collections.get(coll_idx) {
+                    &coll.variables
+                } else {
+                    &[]
+                }
             } else {
                 &[]
-            }
-        } else {
-            &[]
-        };
+            };
 
-        let chain_vars = self
-            .active_chain
-            .as_ref()
-            .map(|c| &c.extracted_variables);
+        let chain_vars = self.active_chain.as_ref().map(|c| &c.extracted_variables);
 
         VariableResolver::from_context(
             chain_vars,
@@ -222,7 +220,7 @@ impl App {
             crate::core::request::Protocol::Http => self.send_http_request().await,
             crate::core::request::Protocol::WebSocket => self.toggle_ws_connection().await,
             crate::core::request::Protocol::Sse => self.toggle_sse_connection().await,
-            _ => Ok(()),
+            crate::core::request::Protocol::Grpc { .. } => Ok(()),
         }
     }
 
@@ -252,7 +250,7 @@ impl App {
                     timestamp: response.timestamp,
                     collection_id: None,
                     request_id: Some(request.id),
-                    response_body: response.body_text().map(|s| s.to_string()),
+                    response_body: response.body_text().map(std::string::ToString::to_string),
                     request_body: None,
                 };
                 self.history.add(entry);
@@ -261,7 +259,7 @@ impl App {
                 self.tabs[self.active_tab].response_tab = ResponseTabKind::Body;
             }
             Err(e) => {
-                self.notify(format!("Request failed: {}", e), NotificationKind::Error);
+                self.notify(format!("Request failed: {e}"), NotificationKind::Error);
             }
         }
         self.loading = false;
@@ -269,7 +267,7 @@ impl App {
     }
 
     pub async fn toggle_ws_connection(&mut self) -> Result<()> {
-        use crate::protocols::websocket::{WsStatus, WsCommand as WsCmd};
+        use crate::protocols::websocket::{WsCommand as WsCmd, WsStatus};
 
         let tab = &self.tabs[self.active_tab];
         // If already connected/connecting -> disconnect
@@ -293,7 +291,10 @@ impl App {
         // Connect
         let url = self.tabs[self.active_tab].request.url.trim().to_string();
         if url.is_empty() {
-            self.notify("Enter a WebSocket URL first".into(), NotificationKind::Warning);
+            self.notify(
+                "Enter a WebSocket URL first".into(),
+                NotificationKind::Warning,
+            );
             return Ok(());
         }
 
@@ -312,19 +313,36 @@ impl App {
             tokio::spawn(async move {
                 while let Some(ws_evt) = ws_event_rx.recv().await {
                     let data = match ws_evt {
-                        crate::protocols::websocket::WsEvent::Connected => crate::event::WsEventData::Connected,
-                        crate::protocols::websocket::WsEvent::Disconnected => crate::event::WsEventData::Disconnected,
-                        crate::protocols::websocket::WsEvent::MessageReceived(msg) => crate::event::WsEventData::MessageReceived(msg),
-                        crate::protocols::websocket::WsEvent::Error(e) => crate::event::WsEventData::Error(e),
+                        crate::protocols::websocket::WsEvent::Connected => {
+                            crate::event::WsEventData::Connected
+                        }
+                        crate::protocols::websocket::WsEvent::Disconnected => {
+                            crate::event::WsEventData::Disconnected
+                        }
+                        crate::protocols::websocket::WsEvent::MessageReceived(msg) => {
+                            crate::event::WsEventData::MessageReceived(msg)
+                        }
+                        crate::protocols::websocket::WsEvent::Error(e) => {
+                            crate::event::WsEventData::Error(e)
+                        }
                     };
-                    if app_tx.send(crate::event::AppEvent::WebSocketEvent { session_id, event: data }).is_err() {
+                    if app_tx
+                        .send(crate::event::AppEvent::WebSocketEvent {
+                            session_id,
+                            event: data,
+                        })
+                        .is_err()
+                    {
                         break;
                     }
                 }
             });
         }
 
-        let headers: Vec<crate::core::request::KeyValuePair> = self.tabs[self.active_tab].request.headers.iter()
+        let headers: Vec<crate::core::request::KeyValuePair> = self.tabs[self.active_tab]
+            .request
+            .headers
+            .iter()
             .filter(|h| h.enabled)
             .cloned()
             .collect();
@@ -334,7 +352,10 @@ impl App {
                 self.tabs[self.active_tab].ws_cmd_sender = Some(cmd_tx);
             }
             Err(e) => {
-                self.notify(format!("WebSocket connect failed: {}", e), NotificationKind::Error);
+                self.notify(
+                    format!("WebSocket connect failed: {e}"),
+                    NotificationKind::Error,
+                );
             }
         }
 
@@ -342,6 +363,7 @@ impl App {
         Ok(())
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn toggle_sse_connection(&mut self) -> Result<()> {
         use crate::protocols::sse::SseStatus;
 
@@ -386,29 +408,46 @@ impl App {
             tokio::spawn(async move {
                 while let Some(sse_out) = sse_event_rx.recv().await {
                     let data = match sse_out {
-                        crate::protocols::sse::SseOutput::Connected => crate::event::SseEventData::Connected,
-                        crate::protocols::sse::SseOutput::Disconnected => crate::event::SseEventData::Disconnected,
-                        crate::protocols::sse::SseOutput::Event(evt) => crate::event::SseEventData::Event(evt),
-                        crate::protocols::sse::SseOutput::Error(e) => crate::event::SseEventData::Error(e),
+                        crate::protocols::sse::SseOutput::Connected => {
+                            crate::event::SseEventData::Connected
+                        }
+                        crate::protocols::sse::SseOutput::Disconnected => {
+                            crate::event::SseEventData::Disconnected
+                        }
+                        crate::protocols::sse::SseOutput::Event(evt) => {
+                            crate::event::SseEventData::Event(evt)
+                        }
+                        crate::protocols::sse::SseOutput::Error(e) => {
+                            crate::event::SseEventData::Error(e)
+                        }
                     };
-                    if app_tx.send(crate::event::AppEvent::SseEvent { session_id, event: data }).is_err() {
+                    if app_tx
+                        .send(crate::event::AppEvent::SseEvent {
+                            session_id,
+                            event: data,
+                        })
+                        .is_err()
+                    {
                         break;
                     }
                 }
             });
         }
 
-        let headers: Vec<crate::core::request::KeyValuePair> = self.tabs[self.active_tab].request.headers.iter()
+        let headers: Vec<crate::core::request::KeyValuePair> = self.tabs[self.active_tab]
+            .request
+            .headers
+            .iter()
             .filter(|h| h.enabled)
             .cloned()
             .collect();
 
-        match crate::protocols::sse::connect(&url, &headers, sse_event_tx).await {
+        match crate::protocols::sse::connect(&url, &headers, sse_event_tx) {
             Ok(cmd_tx) => {
                 self.tabs[self.active_tab].sse_cmd_sender = Some(cmd_tx);
             }
             Err(e) => {
-                self.notify(format!("SSE connect failed: {}", e), NotificationKind::Error);
+                self.notify(format!("SSE connect failed: {e}"), NotificationKind::Error);
             }
         }
 
@@ -461,7 +500,10 @@ impl App {
     /// Set focus to a panel and track last-focused right-column area.
     pub fn navigate_to_panel(&mut self, target: FocusArea) {
         self.focus = target;
-        if matches!(target, FocusArea::UrlBar | FocusArea::RequestBody | FocusArea::ResponseBody) {
+        if matches!(
+            target,
+            FocusArea::UrlBar | FocusArea::RequestBody | FocusArea::ResponseBody
+        ) {
             self.last_right_focus = target;
         }
     }
@@ -476,7 +518,10 @@ impl App {
     /// Global nav: any right-column area → Sidebar (saves last_right_focus).
     pub fn global_nav_left(&mut self) {
         if self.focus != FocusArea::Sidebar {
-            if matches!(self.focus, FocusArea::UrlBar | FocusArea::RequestBody | FocusArea::ResponseBody) {
+            if matches!(
+                self.focus,
+                FocusArea::UrlBar | FocusArea::RequestBody | FocusArea::ResponseBody
+            ) {
                 self.last_right_focus = self.focus;
             }
             self.focus = FocusArea::Sidebar;
@@ -487,13 +532,14 @@ impl App {
     /// Sidebar stays on Sidebar.
     pub fn global_nav_down(&mut self) {
         self.focus = match self.focus {
-            FocusArea::UrlBar => FocusArea::RequestBody,
-            FocusArea::RequestBody => FocusArea::ResponseBody,
-            FocusArea::RequestTabs => FocusArea::RequestBody,
-            FocusArea::ResponseTabs => FocusArea::ResponseBody,
+            FocusArea::UrlBar | FocusArea::RequestTabs => FocusArea::RequestBody,
+            FocusArea::RequestBody | FocusArea::ResponseTabs => FocusArea::ResponseBody,
             other => other,
         };
-        if matches!(self.focus, FocusArea::UrlBar | FocusArea::RequestBody | FocusArea::ResponseBody) {
+        if matches!(
+            self.focus,
+            FocusArea::UrlBar | FocusArea::RequestBody | FocusArea::ResponseBody
+        ) {
             self.last_right_focus = self.focus;
         }
     }
@@ -503,12 +549,14 @@ impl App {
     pub fn global_nav_up(&mut self) {
         self.focus = match self.focus {
             FocusArea::ResponseBody => FocusArea::RequestBody,
-            FocusArea::RequestBody => FocusArea::UrlBar,
+            FocusArea::RequestBody | FocusArea::RequestTabs => FocusArea::UrlBar,
             FocusArea::ResponseTabs => FocusArea::ResponseBody,
-            FocusArea::RequestTabs => FocusArea::UrlBar,
             other => other,
         };
-        if matches!(self.focus, FocusArea::UrlBar | FocusArea::RequestBody | FocusArea::ResponseBody) {
+        if matches!(
+            self.focus,
+            FocusArea::UrlBar | FocusArea::RequestBody | FocusArea::ResponseBody
+        ) {
             self.last_right_focus = self.focus;
         }
     }
@@ -683,8 +731,12 @@ impl ResponseTabKind {
     pub fn for_protocol(protocol: &crate::core::request::Protocol) -> &'static [Self] {
         match protocol {
             crate::core::request::Protocol::WebSocket => &[Self::WsMessages, Self::WsInfo],
-            crate::core::request::Protocol::Sse => &[Self::SseEvents, Self::SseStream, Self::SseInfo],
-            _ => Self::all(),
+            crate::core::request::Protocol::Sse => {
+                &[Self::SseEvents, Self::SseStream, Self::SseInfo]
+            }
+            crate::core::request::Protocol::Http | crate::core::request::Protocol::Grpc { .. } => {
+                Self::all()
+            }
         }
     }
 
@@ -696,10 +748,9 @@ impl ResponseTabKind {
             Self::Timing => "Timing",
             Self::Assertions => "Assertions",
             Self::WsMessages => "Messages",
-            Self::WsInfo => "Info",
+            Self::WsInfo | Self::SseInfo => "Info",
             Self::SseEvents => "Events",
             Self::SseStream => "Stream",
-            Self::SseInfo => "Info",
         }
     }
 }
@@ -720,6 +771,19 @@ pub enum AppMode {
     ProxyInspector,
 }
 
+impl std::fmt::Display for AppMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Normal => write!(f, "NORMAL"),
+            Self::Insert => write!(f, "INSERT"),
+            Self::Modal(kind) => write!(f, "MODAL({kind:?})"),
+            Self::Command => write!(f, "COMMAND"),
+            Self::ChainEditor => write!(f, "CHAIN"),
+            Self::ProxyInspector => write!(f, "PROXY"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalKind {
     Search,
@@ -734,7 +798,10 @@ pub enum ModalKind {
     RenameTab,
     CollectionPicker,
     RenameCollection(usize),
-    RenameRequest { coll_idx: usize, request_id: uuid::Uuid },
+    RenameRequest {
+        coll_idx: usize,
+        request_id: uuid::Uuid,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -747,6 +814,21 @@ pub enum FocusArea {
     ResponseTabs,
     ChainSteps,
     ProxyList,
+}
+
+impl std::fmt::Display for FocusArea {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sidebar => write!(f, "Sidebar"),
+            Self::UrlBar => write!(f, "URL Bar"),
+            Self::RequestTabs => write!(f, "Request Tabs"),
+            Self::RequestBody => write!(f, "Request Body"),
+            Self::ResponseBody => write!(f, "Response Body"),
+            Self::ResponseTabs => write!(f, "Response Tabs"),
+            Self::ChainSteps => write!(f, "Chain Steps"),
+            Self::ProxyList => write!(f, "Proxy List"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -762,6 +844,17 @@ pub enum NotificationKind {
     Success,
     Warning,
     Error,
+}
+
+impl std::fmt::Display for NotificationKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Info => write!(f, "INFO"),
+            Self::Success => write!(f, "SUCCESS"),
+            Self::Warning => write!(f, "WARNING"),
+            Self::Error => write!(f, "ERROR"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]

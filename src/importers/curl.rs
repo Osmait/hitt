@@ -9,7 +9,7 @@ pub fn parse_curl(input: &str) -> Result<Request> {
         input.to_string()
     } else {
         // Maybe it's without the curl prefix
-        format!("curl {}", input)
+        format!("curl {input}")
     };
 
     // Handle line continuations
@@ -34,7 +34,10 @@ pub fn parse_curl(input: &str) -> Result<Request> {
             "-X" | "--request" => {
                 i += 1;
                 if i < words.len() {
-                    method = HttpMethod::from_str(&words[i]);
+                    #[allow(deprecated)]
+                    {
+                        method = HttpMethod::from_str(&words[i]);
+                    }
                 }
             }
             "-H" | "--header" => {
@@ -54,8 +57,7 @@ pub fn parse_curl(input: &str) -> Result<Request> {
             "--data-urlencode" => {
                 i += 1;
                 if i < words.len() {
-                    if data.is_some() {
-                        let existing = data.take().unwrap();
+                    if let Some(existing) = data.take() {
                         data = Some(format!("{}&{}", existing, words[i]));
                     } else {
                         data = Some(words[i].clone());
@@ -205,12 +207,10 @@ fn parse_urlencoded(data: &str) -> Vec<KeyValuePair> {
                 Some(KeyValuePair::new(
                     url::form_urlencoded::parse(parts[0].as_bytes())
                         .next()
-                        .map(|(k, _)| k.to_string())
-                        .unwrap_or_else(|| parts[0].to_string()),
+                        .map_or_else(|| parts[0].to_string(), |(k, _)| k.to_string()),
                     url::form_urlencoded::parse(parts[1].as_bytes())
                         .next()
-                        .map(|(_, v)| v.to_string())
-                        .unwrap_or_else(|| parts[1].to_string()),
+                        .map_or_else(|| parts[1].to_string(), |(_, v)| v.to_string()),
                 ))
             } else {
                 None
@@ -268,8 +268,7 @@ mod tests {
 
     #[test]
     fn test_query_params() {
-        let req =
-            parse_curl("curl 'https://api.example.com/users?page=1&limit=10'").unwrap();
+        let req = parse_curl("curl 'https://api.example.com/users?page=1&limit=10'").unwrap();
         assert_eq!(req.url, "https://api.example.com/users");
         assert_eq!(req.params.len(), 2);
     }

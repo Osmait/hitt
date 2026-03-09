@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use futures_util::StreamExt;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -67,7 +66,7 @@ pub enum SseOutput {
     Disconnected,
 }
 
-pub async fn connect(
+pub fn connect(
     url: &str,
     headers: &[KeyValuePair],
     event_tx: mpsc::UnboundedSender<SseOutput>,
@@ -90,10 +89,7 @@ pub async fn connect(
         match request.send().await {
             Ok(response) => {
                 if !response.status().is_success() {
-                    let _ = event_tx.send(SseOutput::Error(format!(
-                        "HTTP {}",
-                        response.status()
-                    )));
+                    let _ = event_tx.send(SseOutput::Error(format!("HTTP {}", response.status())));
                     return;
                 }
 
@@ -101,8 +97,6 @@ pub async fn connect(
 
                 let mut stream = response.bytes_stream();
                 let mut buffer = String::new();
-
-                use futures_util::StreamExt;
 
                 loop {
                     tokio::select! {

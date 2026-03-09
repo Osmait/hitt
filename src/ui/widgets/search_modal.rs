@@ -3,9 +3,7 @@ use ratatui::{
     layout::{Constraint, Layout, Margin, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Widget,
-    },
+    widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Widget},
 };
 
 use crate::app::App;
@@ -31,7 +29,11 @@ pub fn render_search_modal(app: &App, area: Rect, buf: &mut Buffer) {
 
     let block = Block::default()
         .title(" Search Requests (Ctrl+P) ")
-        .title_style(Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(theme.colors.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_type(border_type_from_set(theme))
         .border_style(theme.focused_border_style())
@@ -43,7 +45,7 @@ pub fn render_search_modal(app: &App, area: Rect, buf: &mut Buffer) {
     // Split inner area into search input and results list
     let chunks = Layout::vertical([
         Constraint::Length(3), // search input
-        Constraint::Min(1),   // results list
+        Constraint::Min(1),    // results list
     ])
     .split(inner);
 
@@ -85,11 +87,8 @@ fn render_search_results(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer)
         } else {
             "No matching requests found"
         };
-        let empty = Paragraph::new(Line::from(Span::styled(
-            msg,
-            theme.muted_style(),
-        )))
-        .style(Style::default().bg(theme.colors.background));
+        let empty = Paragraph::new(Line::from(Span::styled(msg, theme.muted_style())))
+            .style(Style::default().bg(theme.colors.background));
         empty.render(area.inner(Margin::new(1, 1)), buf);
         return;
     }
@@ -120,23 +119,18 @@ fn render_search_results(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer)
             let method_str = result
                 .method
                 .as_ref()
-                .map(|m| m.as_str())
-                .unwrap_or("???");
+                .map_or("???", crate::core::request::HttpMethod::as_str);
             let method_style = result
                 .method
                 .as_ref()
-                .map(|m| theme.method_style(m))
-                .unwrap_or_else(|| theme.muted_style())
+                .map_or_else(|| theme.muted_style(), |m| theme.method_style(m))
                 .add_modifier(Modifier::BOLD);
 
             // Pad method to fixed width for alignment
-            let method_padded = format!("{:<7}", method_str);
+            let method_padded = format!("{method_str:<7}");
 
             // Collection name suffix
-            let collection_label = result
-                .collection_name
-                .as_deref()
-                .unwrap_or("");
+            let collection_label = result.collection_name.as_deref().unwrap_or("");
 
             let base_style = if is_selected {
                 theme.selected_style()
@@ -172,7 +166,7 @@ fn render_search_results(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer)
             let url_display = truncate_str(&result.url, available_width.saturating_sub(20));
 
             let line = Line::from(vec![
-                Span::styled(format!(" {} ", method_padded), method_style),
+                Span::styled(format!(" {method_padded} "), method_style),
                 Span::styled(result.name.clone(), name_style),
                 Span::styled("  ", base_style),
                 Span::styled(url_display, url_style),
@@ -185,23 +179,26 @@ fn render_search_results(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer)
         .collect();
 
     // Result count header
-    let count_line = Line::from(vec![
-        Span::styled(
-            format!(" {} result{} ",
-                app.search_results.len(),
-                if app.search_results.len() == 1 { "" } else { "s" }
-            ),
-            theme.muted_style(),
+    let count_line = Line::from(vec![Span::styled(
+        format!(
+            " {} result{} ",
+            app.search_results.len(),
+            if app.search_results.len() == 1 {
+                ""
+            } else {
+                "s"
+            }
         ),
-    ]);
+        theme.muted_style(),
+    )]);
 
-    let count_paragraph = Paragraph::new(count_line)
-        .style(Style::default().bg(theme.colors.background));
+    let count_paragraph =
+        Paragraph::new(count_line).style(Style::default().bg(theme.colors.background));
 
     // Split the results area to show count header + list
     let results_chunks = Layout::vertical([
         Constraint::Length(1), // count
-        Constraint::Min(1),   // list items
+        Constraint::Min(1),    // list items
     ])
     .split(area);
 

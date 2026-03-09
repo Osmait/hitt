@@ -2,11 +2,15 @@ use chrono::Utc;
 use rand::Rng;
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 use uuid::Uuid;
+
+static VARIABLE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{([^}]+)\}\}").unwrap());
 
 use super::environment::Environment;
 use super::request::KeyValuePair;
 
+#[derive(Debug)]
 pub struct VariableResolver {
     scopes: Vec<VariableScope>,
 }
@@ -19,9 +23,7 @@ pub struct VariableScope {
 
 impl VariableResolver {
     pub fn new() -> Self {
-        Self {
-            scopes: Vec::new(),
-        }
+        Self { scopes: Vec::new() }
     }
 
     /// Build a resolver with the standard scope chain:
@@ -86,33 +88,24 @@ impl VariableResolver {
         });
     }
 
-    pub fn set_variable(&mut self, scope_name: &str, key: String, value: String) {
-        if let Some(scope) = self.scopes.iter_mut().find(|s| s.name == scope_name) {
-            scope.variables.insert(key, value);
-        } else {
-            let mut vars = HashMap::new();
-            vars.insert(key, value);
-            self.scopes.push(VariableScope {
-                name: scope_name.to_string(),
-                variables: vars,
-            });
-        }
-    }
-
     pub fn resolve(&self, input: &str) -> String {
-        let re = Regex::new(r"\{\{([^}]+)\}\}").unwrap();
-        re.replace_all(input, |caps: &regex::Captures| {
-            let var_name = caps[1].trim();
-            self.resolve_variable(var_name)
-                .unwrap_or_else(|| format!("{{{{{}}}}}", var_name))
-        })
-        .to_string()
+        // Fast path: skip regex if no variable markers present
+        if !input.contains("{{") {
+            return input.to_string();
+        }
+        VARIABLE_RE
+            .replace_all(input, |caps: &regex::Captures| {
+                let var_name = caps[1].trim();
+                self.resolve_variable(var_name)
+                    .unwrap_or_else(|| format!("{{{{{var_name}}}}}"))
+            })
+            .to_string()
     }
 
     fn resolve_variable(&self, name: &str) -> Option<String> {
         // Check dynamic variables first (prefixed with $)
         if name.starts_with('$') {
-            return self.resolve_dynamic(name);
+            return Self::resolve_dynamic(name);
         }
 
         // Check scopes in priority order
@@ -125,11 +118,11 @@ impl VariableResolver {
         None
     }
 
-    fn resolve_dynamic(&self, name: &str) -> Option<String> {
+    fn resolve_dynamic(name: &str) -> Option<String> {
         match name {
             "$timestamp" => Some(Utc::now().timestamp().to_string()),
             "$isoTimestamp" => Some(Utc::now().to_rfc3339()),
-            "$randomInt" => {
+            "$randomInt" | "$randomInt1000" => {
                 let mut rng = rand::thread_rng();
                 Some(rng.gen_range(0..1000).to_string())
             }
@@ -137,7 +130,7 @@ impl VariableResolver {
             "$randomEmail" => {
                 let mut rng = rand::thread_rng();
                 let n: u32 = rng.gen_range(1000..9999);
-                Some(format!("user{}@example.com", n))
+                Some(format!("user{n}@example.com"))
             }
             "$randomFullName" => {
                 let names = [
@@ -153,10 +146,6 @@ impl VariableResolver {
                 let mut rng = rand::thread_rng();
                 let idx = rng.gen_range(0..names.len());
                 Some(names[idx].to_string())
-            }
-            "$randomInt1000" => {
-                let mut rng = rand::thread_rng();
-                Some(rng.gen_range(0..1000).to_string())
             }
             "$randomBoolean" => {
                 let mut rng = rand::thread_rng();
@@ -194,16 +183,6 @@ impl VariableResolver {
             .collect()
     }
 
-    /// Get all resolved variables for display
-    pub fn all_variables(&self) -> Vec<(&str, &str, &str)> {
-        let mut result = Vec::new();
-        for scope in &self.scopes {
-            for (k, v) in &scope.variables {
-                result.push((scope.name.as_str(), k.as_str(), v.as_str()));
-            }
-        }
-        result
-    }
 }
 
 impl Default for VariableResolver {
@@ -233,10 +212,7 @@ mod tests {
     #[test]
     fn test_unresolved_variable_preserved() {
         let resolver = VariableResolver::new();
-        assert_eq!(
-            resolver.resolve("{{unknown}}"),
-            "{{unknown}}"
-        );
+        assert_eq!(resolver.resolve("{{unknown}}"), "{{unknown}}");
     }
 
     #[test]

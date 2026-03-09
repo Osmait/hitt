@@ -31,7 +31,7 @@ pub fn render_status_bar(app: &App, area: Rect, buf: &mut Buffer) {
 
     // Split the bar into: [mode] [hints/notification] [loading]
     let chunks = Layout::horizontal([
-        Constraint::Length(mode_label_width(&app.mode, &app.nav_mode)),
+        Constraint::Length(mode_label_width(&app.mode, app.nav_mode)),
         Constraint::Min(1),
         Constraint::Length(if app.loading { 6 } else { 0 }),
     ])
@@ -55,14 +55,14 @@ pub fn render_status_bar(app: &App, area: Rect, buf: &mut Buffer) {
 
 /// Renders the mode indicator badge on the left side of the status bar.
 fn render_mode_indicator(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
-    let (label, style) = mode_display(&app.mode, &app.nav_mode, theme);
+    let (label, style) = mode_display(&app.mode, app.nav_mode, theme);
 
     let paragraph = Paragraph::new(Line::from(vec![Span::styled(label, style)]));
     paragraph.render(area, buf);
 }
 
 /// Returns the display label and style for the current mode.
-fn mode_display(mode: &AppMode, nav_mode: &NavMode, theme: &Theme) -> (String, Style) {
+fn mode_display(mode: &AppMode, nav_mode: NavMode, theme: &Theme) -> (String, Style) {
     match mode {
         AppMode::Normal => match nav_mode {
             NavMode::Global => (
@@ -136,13 +136,13 @@ fn mode_display(mode: &AppMode, nav_mode: &NavMode, theme: &Theme) -> (String, S
 }
 
 /// Returns the width needed for the mode label.
-fn mode_label_width(mode: &AppMode, nav_mode: &NavMode) -> u16 {
-    let (label, _) = mode_display_label(mode, nav_mode);
+fn mode_label_width(mode: &AppMode, nav_mode: NavMode) -> u16 {
+    let (label, ()) = mode_display_label(mode, nav_mode);
     label.len() as u16
 }
 
 /// Returns just the label string for width calculation without allocating a Style.
-fn mode_display_label(mode: &AppMode, nav_mode: &NavMode) -> (&'static str, ()) {
+fn mode_display_label(mode: &AppMode, nav_mode: NavMode) -> (&'static str, ()) {
     match mode {
         AppMode::Normal => match nav_mode {
             NavMode::Global => (" GLOBAL ", ()),
@@ -194,45 +194,64 @@ fn build_hints<'a>(app: &App, theme: &'a Theme) -> Vec<Span<'a>> {
         AppMode::Normal => {
             if app.nav_mode == NavMode::Global {
                 add_hint(&mut spans, "hjkl", "Nav", key_style, desc_style, sep_style);
-                add_hint(&mut spans, "Enter", "Focus", key_style, desc_style, sep_style);
+                add_hint(
+                    &mut spans, "Enter", "Focus", key_style, desc_style, sep_style,
+                );
                 add_hint(&mut spans, "Tab", "Cycle", key_style, desc_style, sep_style);
                 add_hint(&mut spans, "q", "Quit", key_style, desc_style, sep_style);
                 add_hint(&mut spans, "?", "Help", key_style, desc_style, sep_style);
             } else {
-                add_hint(&mut spans, "Esc", "Global", key_style, desc_style, sep_style);
-                match app.focus {
-                    crate::app::FocusArea::Sidebar => {
-                        add_hint(&mut spans, "Enter/l", "Open", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, "h", "Collapse", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, "j/k", "Nav", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, "a", "Add", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, "x", "Del", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, "r", "Rename", key_style, desc_style, sep_style);
-                    }
-                    _ => {
-                        add_hint(&mut spans, "Enter", "Send", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, "/", "Search", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, "e", "Env", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, "i", "Insert", key_style, desc_style, sep_style);
-                        add_hint(&mut spans, ":", "Cmd", key_style, desc_style, sep_style);
-                    }
+                add_hint(
+                    &mut spans, "Esc", "Global", key_style, desc_style, sep_style,
+                );
+                if app.focus == crate::app::FocusArea::Sidebar {
+                    add_hint(
+                        &mut spans, "Enter/l", "Open", key_style, desc_style, sep_style,
+                    );
+                    add_hint(
+                        &mut spans, "h", "Collapse", key_style, desc_style, sep_style,
+                    );
+                    add_hint(&mut spans, "j/k", "Nav", key_style, desc_style, sep_style);
+                    add_hint(&mut spans, "a", "Add", key_style, desc_style, sep_style);
+                    add_hint(&mut spans, "x", "Del", key_style, desc_style, sep_style);
+                    add_hint(&mut spans, "r", "Rename", key_style, desc_style, sep_style);
+                } else {
+                    add_hint(
+                        &mut spans, "Enter", "Send", key_style, desc_style, sep_style,
+                    );
+                    add_hint(&mut spans, "/", "Search", key_style, desc_style, sep_style);
+                    add_hint(&mut spans, "e", "Env", key_style, desc_style, sep_style);
+                    add_hint(&mut spans, "i", "Insert", key_style, desc_style, sep_style);
+                    add_hint(&mut spans, ":", "Cmd", key_style, desc_style, sep_style);
                 }
                 add_hint(&mut spans, "?", "Help", key_style, desc_style, sep_style);
             }
         }
         AppMode::Insert => {
-            add_hint(&mut spans, "Esc", "Normal", key_style, desc_style, sep_style);
-            add_hint(&mut spans, "Enter", "Send", key_style, desc_style, sep_style);
+            add_hint(
+                &mut spans, "Esc", "Normal", key_style, desc_style, sep_style,
+            );
+            add_hint(
+                &mut spans, "Enter", "Send", key_style, desc_style, sep_style,
+            );
             add_hint(&mut spans, "Tab", "Next", key_style, desc_style, sep_style);
         }
         AppMode::Modal(ModalKind::Search) => {
-            add_hint(&mut spans, "Enter", "Select", key_style, desc_style, sep_style);
-            add_hint(&mut spans, "Up/Down", "Navigate", key_style, desc_style, sep_style);
+            add_hint(
+                &mut spans, "Enter", "Select", key_style, desc_style, sep_style,
+            );
+            add_hint(
+                &mut spans, "Up/Down", "Navigate", key_style, desc_style, sep_style,
+            );
             add_hint(&mut spans, "Esc", "Close", key_style, desc_style, sep_style);
         }
         AppMode::Modal(ModalKind::Help) => {
-            add_hint(&mut spans, "j/k", "Scroll", key_style, desc_style, sep_style);
-            add_hint(&mut spans, "Esc/q", "Close", key_style, desc_style, sep_style);
+            add_hint(
+                &mut spans, "j/k", "Scroll", key_style, desc_style, sep_style,
+            );
+            add_hint(
+                &mut spans, "Esc/q", "Close", key_style, desc_style, sep_style,
+            );
         }
         AppMode::Modal(_) => {
             add_hint(&mut spans, "Esc", "Close", key_style, desc_style, sep_style);
@@ -254,7 +273,7 @@ fn build_hints<'a>(app: &App, theme: &'a Theme) -> Vec<Span<'a>> {
         crate::app::FocusArea::ProxyList => "Proxy",
     };
     spans.push(Span::styled(
-        format!("  {} ", focus_label),
+        format!("  {focus_label} "),
         Style::default().fg(theme.colors.foreground),
     ));
 
@@ -262,13 +281,21 @@ fn build_hints<'a>(app: &App, theme: &'a Theme) -> Vec<Span<'a>> {
     let coll_count = app.collections.len();
     if tab_count > 0 || coll_count > 0 {
         spans.push(Span::styled(
-            format!(" {} tab{}", tab_count, if tab_count != 1 { "s" } else { "" }),
+            format!(
+                " {} tab{}",
+                tab_count,
+                if tab_count == 1 { "" } else { "s" }
+            ),
             sep_style,
         ));
     }
     if coll_count > 0 {
         spans.push(Span::styled(
-            format!("  {} collection{}", coll_count, if coll_count != 1 { "s" } else { "" }),
+            format!(
+                "  {} collection{}",
+                coll_count,
+                if coll_count == 1 { "" } else { "s" }
+            ),
             sep_style,
         ));
     }
@@ -343,7 +370,7 @@ fn render_notification(
     };
 
     let line = Line::from(vec![
-        Span::styled(format!(" [{}] ", icon), style),
+        Span::styled(format!(" [{icon}] "), style),
         Span::styled(notification.message.clone(), msg_style),
     ]);
 
@@ -391,7 +418,7 @@ fn render_spinner(_app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
     let spinner_char = SPINNER_FRAMES[frame_idx];
 
     let line = Line::from(Span::styled(
-        format!(" {} ", spinner_char),
+        format!(" {spinner_char} "),
         Style::default()
             .fg(theme.colors.accent)
             .add_modifier(Modifier::BOLD),

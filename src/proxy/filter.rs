@@ -1,5 +1,5 @@
-use crate::core::request::HttpMethod;
 use super::capture::CapturedRequest;
+use crate::core::request::HttpMethod;
 
 #[derive(Debug, Clone, Default)]
 pub struct ProxyFilter {

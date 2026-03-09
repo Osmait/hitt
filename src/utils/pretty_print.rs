@@ -78,10 +78,7 @@ fn highlight_json_line<'a>(line: &str, syntax: &SyntaxColors, fg: Color) -> Line
             }
             // Braces / Brackets
             '{' | '}' | '[' | ']' => {
-                spans.push(Span::styled(
-                    ch.to_string(),
-                    Style::default().fg(fg),
-                ));
+                spans.push(Span::styled(ch.to_string(), Style::default().fg(fg)));
                 i += 1;
             }
             // Numbers or keywords (true/false/null)
@@ -119,7 +116,6 @@ pub fn pretty_xml(input: &str) -> String {
     // Simple XML indentation
     let mut result = String::new();
     let mut depth = 0;
-    let mut in_tag = false;
     let mut tag_content = String::new();
 
     for c in input.chars() {
@@ -131,12 +127,10 @@ pub fn pretty_xml(input: &str) -> String {
                     result.push('\n');
                 }
                 tag_content.clear();
-                in_tag = true;
                 tag_content.push(c);
             }
             '>' => {
                 tag_content.push(c);
-                in_tag = false;
 
                 let tag = tag_content.trim();
                 if tag.starts_with("</") {
@@ -165,28 +159,3 @@ pub fn pretty_xml(input: &str) -> String {
     result
 }
 
-pub fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
-    }
-}
-
-pub fn format_bytes(bytes: usize) -> String {
-    if bytes < 1024 {
-        format!("{} B", bytes)
-    } else if bytes < 1024 * 1024 {
-        format!("{:.1} KB", bytes as f64 / 1024.0)
-    } else {
-        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
-    }
-}
-
-pub fn format_duration_ms(ms: u64) -> String {
-    if ms < 1000 {
-        format!("{}ms", ms)
-    } else {
-        format!("{:.1}s", ms as f64 / 1000.0)
-    }
-}

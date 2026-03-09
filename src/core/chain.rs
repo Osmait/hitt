@@ -95,16 +95,9 @@ pub enum StepCondition {
 pub enum ChainStepStatus {
     Pending,
     Running,
-    Success {
-        status: u16,
-        duration_ms: u64,
-    },
-    Failed {
-        error: String,
-    },
-    Skipped {
-        reason: String,
-    },
+    Success { status: u16, duration_ms: u64 },
+    Failed { error: String },
+    Skipped { reason: String },
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +122,10 @@ impl ChainExecutionState {
 }
 
 /// Extract values from a response based on extraction rules.
-pub fn extract_values(extractions: &[ValueExtraction], response: &Response) -> HashMap<String, String> {
+pub fn extract_values(
+    extractions: &[ValueExtraction],
+    response: &Response,
+) -> HashMap<String, String> {
     let mut result = HashMap::new();
     for extraction in extractions {
         let value = match &extraction.source {
@@ -153,17 +149,15 @@ pub fn extract_values(extractions: &[ValueExtraction], response: &Response) -> H
                     None
                 }
             }
-            ExtractionSource::Header(name) => {
-                response.header_value(name).map(|v| v.to_string())
-            }
-            ExtractionSource::Cookie(name) => {
-                response.cookies.iter()
-                    .find(|c| c.name == *name)
-                    .map(|c| c.value.clone())
-            }
-            ExtractionSource::Status => {
-                Some(response.status.to_string())
-            }
+            ExtractionSource::Header(name) => response
+                .header_value(name)
+                .map(std::string::ToString::to_string),
+            ExtractionSource::Cookie(name) => response
+                .cookies
+                .iter()
+                .find(|c| c.name == *name)
+                .map(|c| c.value.clone()),
+            ExtractionSource::Status => Some(response.status.to_string()),
         };
         if let Some(val) = value {
             result.insert(extraction.variable_name.clone(), val);
@@ -173,6 +167,7 @@ pub fn extract_values(extractions: &[ValueExtraction], response: &Response) -> H
 }
 
 /// Evaluate a step condition against a response and current variables.
+#[allow(clippy::implicit_hasher)]
 pub fn evaluate_condition(
     condition: &StepCondition,
     response: Option<&Response>,
@@ -180,21 +175,14 @@ pub fn evaluate_condition(
 ) -> bool {
     match condition {
         StepCondition::Always => true,
-        StepCondition::StatusEquals(code) => {
-            response.map(|r| r.status == *code).unwrap_or(false)
-        }
+        StepCondition::StatusEquals(code) => response.is_some_and(|r| r.status == *code),
         StepCondition::StatusRange(lo, hi) => {
-            response.map(|r| r.status >= *lo && r.status <= *hi).unwrap_or(false)
+            response.is_some_and(|r| r.status >= *lo && r.status <= *hi)
         }
-        StepCondition::BodyContains(s) => {
-            response
-                .and_then(|r| r.body_text())
-                .map(|body| body.contains(s.as_str()))
-                .unwrap_or(false)
-        }
-        StepCondition::VariableEquals(name, val) => {
-            variables.get(name).map(|v| v == val).unwrap_or(false)
-        }
+        StepCondition::BodyContains(s) => response
+            .and_then(|r| r.body_text())
+            .is_some_and(|body| body.contains(s.as_str())),
+        StepCondition::VariableEquals(name, val) => variables.get(name).is_some_and(|v| v == val),
     }
 }
 

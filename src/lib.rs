@@ -1,5 +1,3 @@
-#![allow(unused_imports, unused_variables, dead_code)]
-
 pub mod app;
 pub mod cli;
 pub mod core;

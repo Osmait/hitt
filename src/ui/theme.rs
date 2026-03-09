@@ -1,6 +1,5 @@
 use anyhow::Result;
 use ratatui::style::{Color, Modifier, Style};
-use serde::{Deserialize, Serialize};
 
 use crate::core::request::HttpMethod;
 
@@ -72,7 +71,7 @@ impl Theme {
             "dracula" => Ok(Self::dracula()),
             "gruvbox" => Ok(Self::gruvbox()),
             "tokyo-night" => Ok(Self::tokyo_night()),
-            _ => anyhow::bail!("Unknown theme: {}", name),
+            _ => anyhow::bail!("Unknown theme: {name}"),
         }
     }
 
@@ -259,11 +258,15 @@ impl Theme {
     }
 
     pub fn protocol_style_ws(&self) -> Style {
-        Style::default().fg(self.colors.methods.ws).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(self.colors.methods.ws)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn protocol_style_sse(&self) -> Style {
-        Style::default().fg(self.colors.methods.sse).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(self.colors.methods.sse)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn status_style(&self, status: u16) -> Style {

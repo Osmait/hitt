@@ -10,7 +10,7 @@ pub fn validate(instance: &Value, schema: &Value) -> Result<(), Vec<String>> {
             if path.is_empty() {
                 e.to_string()
             } else {
-                format!("{}: {}", path, e)
+                format!("{path}: {e}")
             }
         })
         .collect();

@@ -39,11 +39,8 @@ pub fn render_help_modal(app: &App, area: Rect, buf: &mut Buffer) {
     block.render(modal_area, buf);
 
     // Split into two columns
-    let columns = Layout::horizontal([
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
-    ])
-    .split(inner);
+    let columns =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(inner);
 
     let scroll_offset = app.help_scroll;
 
@@ -166,7 +163,12 @@ fn render_command_mode_bindings(theme: &Theme, area: Rect, buf: &mut Buffer, scr
     add_binding(&mut lines, ":help", "Show this help", theme);
     add_binding(&mut lines, ":theme <name>", "Switch theme", theme);
     add_binding(&mut lines, ":set <key> <val>", "Change setting", theme);
-    add_binding(&mut lines, ":rename <name>", "Rename current request", theme);
+    add_binding(
+        &mut lines,
+        ":rename <name>",
+        "Rename current request",
+        theme,
+    );
     lines.push(Line::from(""));
 
     // Collections
@@ -175,7 +177,12 @@ fn render_command_mode_bindings(theme: &Theme, area: Rect, buf: &mut Buffer, scr
     add_binding(&mut lines, ":delcol [name]", "Delete collection", theme);
     add_binding(&mut lines, ":save", "Save request to collection", theme);
     add_binding(&mut lines, ":delreq", "Delete selected request", theme);
-    add_binding(&mut lines, ":addvar <k> <v>", "Add collection variable", theme);
+    add_binding(
+        &mut lines,
+        ":addvar <k> <v>",
+        "Add collection variable",
+        theme,
+    );
     lines.push(Line::from(""));
 
     // Environment
@@ -188,10 +195,25 @@ fn render_command_mode_bindings(theme: &Theme, area: Rect, buf: &mut Buffer, scr
 
     // Import / Export
     add_section_header(&mut lines, "Import / Export", theme);
-    add_binding(&mut lines, ":import <path>", "Import file (auto-detect)", theme);
-    add_binding(&mut lines, ":export <path>", "Export (.json/.md/.sh)", theme);
+    add_binding(
+        &mut lines,
+        ":import <path>",
+        "Import file (auto-detect)",
+        theme,
+    );
+    add_binding(
+        &mut lines,
+        ":export <path>",
+        "Export (.json/.md/.sh)",
+        theme,
+    );
     add_binding(&mut lines, ":curl", "Copy as cURL", theme);
-    add_binding(&mut lines, ":paste-curl", "Import cURL from clipboard", theme);
+    add_binding(
+        &mut lines,
+        ":paste-curl",
+        "Import cURL from clipboard",
+        theme,
+    );
     add_binding(&mut lines, ":docs", "Copy docs to clipboard", theme);
     lines.push(Line::from(""));
 
@@ -200,7 +222,12 @@ fn render_command_mode_bindings(theme: &Theme, area: Rect, buf: &mut Buffer, scr
     add_binding(&mut lines, ":ws <url>", "Connect WebSocket", theme);
     add_binding(&mut lines, ":ws-disconnect", "Disconnect WebSocket", theme);
     add_binding(&mut lines, ":sse <url>", "Connect SSE stream", theme);
-    add_binding(&mut lines, ":sse-disconnect", "Disconnect SSE stream", theme);
+    add_binding(
+        &mut lines,
+        ":sse-disconnect",
+        "Disconnect SSE stream",
+        theme,
+    );
     lines.push(Line::from(""));
 
     // Testing
@@ -215,7 +242,12 @@ fn render_command_mode_bindings(theme: &Theme, area: Rect, buf: &mut Buffer, scr
     add_binding(&mut lines, "follow_redirects", "true/false", theme);
     add_binding(&mut lines, "verify_ssl", "true/false", theme);
     add_binding(&mut lines, "vim_mode", "true/false", theme);
-    add_binding(&mut lines, "history_limit <n>", "Max history entries", theme);
+    add_binding(
+        &mut lines,
+        "history_limit <n>",
+        "Max history entries",
+        theme,
+    );
     add_binding(&mut lines, "theme <name>", "Set theme", theme);
     lines.push(Line::from(""));
 
@@ -260,7 +292,7 @@ fn add_section_header(lines: &mut Vec<Line<'static>>, title: &str, theme: &Theme
 fn add_binding(lines: &mut Vec<Line<'static>>, key: &str, desc: &str, theme: &Theme) {
     lines.push(Line::from(vec![
         Span::styled(
-            format!("  {:<20}", key),
+            format!("  {key:<20}"),
             Style::default()
                 .fg(theme.colors.accent)
                 .add_modifier(Modifier::BOLD),
@@ -274,17 +306,12 @@ fn add_binding(lines: &mut Vec<Line<'static>>, key: &str, desc: &str, theme: &Th
 
 /// Adds a theme entry with optional annotation.
 fn add_theme_entry(lines: &mut Vec<Line<'static>>, name: &str, note: &str, theme: &Theme) {
-    let mut spans = vec![
-        Span::styled(
-            format!("  {}", name),
-            Style::default().fg(theme.colors.foreground),
-        ),
-    ];
+    let mut spans = vec![Span::styled(
+        format!("  {name}"),
+        Style::default().fg(theme.colors.foreground),
+    )];
     if !note.is_empty() {
-        spans.push(Span::styled(
-            format!(" {}", note),
-            theme.muted_style(),
-        ));
+        spans.push(Span::styled(format!(" {note}"), theme.muted_style()));
     }
     lines.push(Line::from(spans));
 }

@@ -1,12 +1,12 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::time::Duration;
 use uuid::Uuid;
 
 use super::request::KeyValuePair;
 use crate::testing::assertion_engine::AssertionResult;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Response {
     pub id: Uuid,
     pub status: u16,
@@ -48,23 +48,15 @@ impl Response {
         self.header_value("content-type")
     }
 
-    pub fn is_json(&self) -> bool {
-        self.content_type()
-            .map(|ct| ct.contains("json"))
-            .unwrap_or(false)
-    }
-
     pub fn body_text(&self) -> Option<&str> {
         match &self.body {
-            ResponseBody::Text(s) => Some(s.as_str()),
-            ResponseBody::Json(s) => Some(s.as_str()),
+            ResponseBody::Text(s) | ResponseBody::Json(s) => Some(s.as_str()),
             _ => None,
         }
     }
 
     pub fn body_json(&self) -> Option<serde_json::Value> {
-        self.body_text()
-            .and_then(|s| serde_json::from_str(s).ok())
+        self.body_text().and_then(|s| serde_json::from_str(s).ok())
     }
 }
 
@@ -76,6 +68,19 @@ pub enum ResponseBody {
     Html(String),
     Binary(Vec<u8>),
     Empty,
+}
+
+impl std::fmt::Display for ResponseBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Text(_) => write!(f, "Text"),
+            Self::Json(_) => write!(f, "JSON"),
+            Self::Xml(_) => write!(f, "XML"),
+            Self::Html(_) => write!(f, "HTML"),
+            Self::Binary(b) => write!(f, "Binary ({} bytes)", b.len()),
+            Self::Empty => write!(f, "Empty"),
+        }
+    }
 }
 
 impl ResponseBody {
@@ -115,13 +120,19 @@ pub struct Cookie {
     pub secure: bool,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct RequestTiming {
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub dns_lookup: Duration,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub tcp_connect: Duration,
+    #[serde(serialize_with = "serialize_option_duration_ms")]
     pub tls_handshake: Option<Duration>,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub first_byte: Duration,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub content_download: Duration,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub total: Duration,
 }
 
@@ -136,14 +147,14 @@ impl RequestTiming {
     pub fn format_total(&self) -> String {
         let ms = self.total.as_millis();
         if ms < 1000 {
-            format!("{}ms", ms)
+            format!("{ms}ms")
         } else {
             format!("{:.1}s", self.total.as_secs_f64())
         }
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct ResponseSize {
     pub headers: usize,
     pub body: usize,
@@ -154,14 +165,34 @@ impl ResponseSize {
         self.headers + self.body
     }
 
+    #[allow(clippy::cast_precision_loss)]
     pub fn format(&self) -> String {
         let total = self.total();
         if total < 1024 {
-            format!("{} B", total)
+            format!("{total} B")
         } else if total < 1024 * 1024 {
             format!("{:.1} KB", total as f64 / 1024.0)
         } else {
             format!("{:.1} MB", total as f64 / (1024.0 * 1024.0))
         }
+    }
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn serialize_duration_ms<S: Serializer>(
+    d: &Duration,
+    s: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    s.serialize_u64(d.as_millis() as u64)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::ref_option)]
+fn serialize_option_duration_ms<S: Serializer>(
+    d: &Option<Duration>,
+    s: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    match d {
+        Some(d) => s.serialize_some(&(d.as_millis() as u64)),
+        None => s.serialize_none(),
     }
 }

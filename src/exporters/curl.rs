@@ -27,7 +27,7 @@ pub fn to_curl(request: &Request, resolver: &VariableResolver) -> String {
             full_url = format!("{}?{}", full_url, query.join("&"));
         }
     }
-    parts.push(format!("'{}'", full_url));
+    parts.push(format!("'{full_url}'"));
 
     // Headers
     let headers = resolver.resolve_headers(&request.headers);
@@ -39,12 +39,12 @@ pub fn to_curl(request: &Request, resolver: &VariableResolver) -> String {
     match &request.auth {
         Some(AuthConfig::Bearer { token }) => {
             let resolved = resolver.resolve(token);
-            parts.push(format!("-H 'Authorization: Bearer {}'", resolved));
+            parts.push(format!("-H 'Authorization: Bearer {resolved}'"));
         }
         Some(AuthConfig::Basic { username, password }) => {
             let user = resolver.resolve(username);
             let pass = resolver.resolve(password);
-            parts.push(format!("-u '{}:{}'", user, pass));
+            parts.push(format!("-u '{user}:{pass}'"));
         }
         Some(AuthConfig::ApiKey {
             key,
@@ -55,7 +55,7 @@ pub fn to_curl(request: &Request, resolver: &VariableResolver) -> String {
             let v = resolver.resolve(value);
             match location {
                 crate::core::auth::ApiKeyLocation::Header => {
-                    parts.push(format!("-H '{}: {}'", k, v));
+                    parts.push(format!("-H '{k}: {v}'"));
                 }
                 crate::core::auth::ApiKeyLocation::QueryParam => {
                     // Already added to URL
@@ -71,7 +71,10 @@ pub fn to_curl(request: &Request, resolver: &VariableResolver) -> String {
             let resolved = resolver.resolve(json);
             parts.push(format!("-d '{}'", shell_escape(&resolved)));
             // Add content-type if not already in headers
-            if !headers.iter().any(|h| h.key.eq_ignore_ascii_case("content-type")) {
+            if !headers
+                .iter()
+                .any(|h| h.key.eq_ignore_ascii_case("content-type"))
+            {
                 parts.push("-H 'Content-Type: application/json'".to_string());
             }
         }
@@ -79,7 +82,7 @@ pub fn to_curl(request: &Request, resolver: &VariableResolver) -> String {
             for pair in pairs.iter().filter(|p| p.enabled) {
                 let k = resolver.resolve(&pair.key);
                 let v = resolver.resolve(&pair.value);
-                parts.push(format!("--data-urlencode '{}={}'", k, v));
+                parts.push(format!("--data-urlencode '{k}={v}'"));
             }
         }
         Some(RequestBody::Raw { content, .. }) => {
@@ -95,7 +98,10 @@ pub fn to_curl(request: &Request, resolver: &VariableResolver) -> String {
                 }
             }
             parts.push(format!("-d '{}'", shell_escape(&gql.to_string())));
-            if !headers.iter().any(|h| h.key.eq_ignore_ascii_case("content-type")) {
+            if !headers
+                .iter()
+                .any(|h| h.key.eq_ignore_ascii_case("content-type"))
+            {
                 parts.push("-H 'Content-Type: application/json'".to_string());
             }
         }

@@ -123,7 +123,12 @@ fn render_header_bar(app: &mut App, frame: &mut Frame, area: Rect) {
 
     // --- App title ---
     let title = Paragraph::new(Line::from(vec![
-        Span::styled(" hitt ", Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " hitt ",
+            Style::default()
+                .fg(theme.colors.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled("v0.1", theme.muted_style()),
     ]))
     .block(
@@ -148,7 +153,7 @@ fn render_header_bar(app: &mut App, frame: &mut Frame, area: Rect) {
             };
             let num = i + 1;
             let display = if num <= 9 {
-                format!("{} {}", num, truncated)
+                format!("{num} {truncated}")
             } else {
                 truncated
             };
@@ -182,11 +187,7 @@ fn render_header_bar(app: &mut App, frame: &mut Frame, area: Rect) {
 
     // --- Environment selector ---
     let env_label = match app.active_env {
-        Some(idx) => app
-            .environments
-            .get(idx)
-            .map(|e| e.name.as_str())
-            .unwrap_or("???"),
+        Some(idx) => app.environments.get(idx).map_or("???", |e| e.name.as_str()),
         None => "No Env",
     };
     let env_style = if app.active_env.is_some() {
@@ -220,10 +221,7 @@ fn render_body(app: &mut App, frame: &mut Frame, area: Rect) {
 
     let body_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(sidebar_width),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(sidebar_width), Constraint::Min(0)])
         .split(area);
 
     render_sidebar_panel(app, frame, body_chunks[0]);
@@ -292,8 +290,8 @@ fn render_sidebar_section_tabs(app: &mut App, frame: &mut Frame, area: Rect) {
     ];
 
     // Record clickable regions for each sidebar section tab first (before immutable borrows).
-    let total_len: u16 = sections.iter().map(|(_, l)| l.len() as u16).sum::<u16>()
-        + (sections.len() as u16 - 1) * 3; // 3 for " | "
+    let total_len: u16 =
+        sections.iter().map(|(_, l)| l.len() as u16).sum::<u16>() + (sections.len() as u16 - 1) * 3; // 3 for " | "
     let start_x = area.x + area.width.saturating_sub(total_len) / 2;
     let mut x = start_x;
     for (section, label) in &sections {
@@ -336,11 +334,11 @@ fn render_main_panel(app: &mut App, frame: &mut Frame, area: Rect) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // URL bar
-            Constraint::Length(2),  // Request tab selector
+            Constraint::Length(3),      // URL bar
+            Constraint::Length(2),      // Request tab selector
             Constraint::Percentage(40), // Request body / params area
-            Constraint::Length(2),  // Response tab selector
-            Constraint::Min(0),    // Response body area
+            Constraint::Length(2),      // Response tab selector
+            Constraint::Min(0),         // Response body area
         ])
         .split(area);
 
@@ -363,7 +361,10 @@ fn render_url_bar(app: &mut App, frame: &mut Frame, area: Rect) {
     let (method_label, method_style_val) = match tab.request.protocol {
         Protocol::WebSocket => (" WS ".to_string(), app.theme.protocol_style_ws()),
         Protocol::Sse => (" SSE ".to_string(), app.theme.protocol_style_sse()),
-        _ => (format!(" {} ", tab.request.method), app.theme.method_style(&tab.request.method)),
+        _ => (
+            format!(" {} ", tab.request.method),
+            app.theme.method_style(&tab.request.method),
+        ),
     };
 
     // Record method selector region (first ~8 chars inside the box) and URL bar.
@@ -388,14 +389,22 @@ fn render_url_bar(app: &mut App, frame: &mut Frame, area: Rect) {
         Span::raw("")
     };
 
-    let url_bar = Paragraph::new(Line::from(vec![method_span, Span::raw(" "), url_span, cursor_hint]))
-        .block(
-            Block::default()
-                .title(Span::styled(" URL ", Style::default().fg(theme.colors.foreground)))
-                .borders(Borders::ALL)
-                .border_set(theme.border_set())
-                .border_style(border_style),
-        );
+    let url_bar = Paragraph::new(Line::from(vec![
+        method_span,
+        Span::raw(" "),
+        url_span,
+        cursor_hint,
+    ]))
+    .block(
+        Block::default()
+            .title(Span::styled(
+                " URL ",
+                Style::default().fg(theme.colors.foreground),
+            ))
+            .borders(Borders::ALL)
+            .border_set(theme.border_set())
+            .border_style(border_style),
+    );
 
     frame.render_widget(url_bar, area);
 }
@@ -509,17 +518,11 @@ fn render_request_area(app: &mut App, frame: &mut Frame, area: Rect) {
             );
         }
         RequestTabKind::Headers => {
-            render_key_value_table(
-                &tab.request.headers,
-                "No headers",
-                theme,
-                frame,
-                inner,
-            );
+            render_key_value_table(&tab.request.headers, "No headers", theme, frame, inner);
         }
         RequestTabKind::Auth => {
             let text = match &tab.request.auth {
-                Some(auth) => format!("{:?}", auth),
+                Some(auth) => format!("{auth:?}"),
                 None => "No authentication configured".to_string(),
             };
             let paragraph = Paragraph::new(text)
@@ -536,14 +539,14 @@ fn render_request_area(app: &mut App, frame: &mut Frame, area: Rect) {
                 Some(crate::core::request::RequestBody::None) | None => {
                     String::from("No request body")
                 }
-                Some(crate::core::request::RequestBody::FormData(pairs))
-                | Some(crate::core::request::RequestBody::FormUrlEncoded(pairs)) => {
-                    pairs
-                        .iter()
-                        .map(|p| format!("{}: {}", p.key, p.value))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                }
+                Some(
+                    crate::core::request::RequestBody::FormData(pairs)
+                    | crate::core::request::RequestBody::FormUrlEncoded(pairs),
+                ) => pairs
+                    .iter()
+                    .map(|p| format!("{}: {}", p.key, p.value))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
                 Some(crate::core::request::RequestBody::Binary(path)) => {
                     format!("[Binary: {}]", path.display())
                 }
@@ -555,8 +558,7 @@ fn render_request_area(app: &mut App, frame: &mut Frame, area: Rect) {
         }
         RequestTabKind::Assertions => {
             if tab.request.assertions.is_empty() {
-                let p = Paragraph::new("No assertions defined")
-                    .style(theme.muted_style());
+                let p = Paragraph::new("No assertions defined").style(theme.muted_style());
                 frame.render_widget(p, inner);
             } else {
                 let lines: Vec<Line> = tab
@@ -653,9 +655,10 @@ fn render_response_tab_bar(app: &mut App, frame: &mut Frame, area: Rect) {
         } else {
             resp_tab_w
         };
-        app.regions
-            .response_tabs
-            .push((Rect::new(x, bar_chunks[1].y, w, bar_chunks[1].height), *kind));
+        app.regions.response_tabs.push((
+            Rect::new(x, bar_chunks[1].y, w, bar_chunks[1].height),
+            *kind,
+        ));
     }
 
     let theme = &app.theme;
@@ -669,27 +672,35 @@ fn render_response_tab_bar(app: &mut App, frame: &mut Frame, area: Rect) {
                 use crate::protocols::websocket::WsStatus;
                 let (dot, dot_style) = match &session.status {
                     WsStatus::Connected { .. } => ("●", Style::default().fg(theme.colors.success)),
-                    WsStatus::Connecting => ("◌", Style::default().fg(theme.colors.warning)),
-                    WsStatus::Reconnecting { .. } => ("◌", Style::default().fg(theme.colors.warning)),
+                    WsStatus::Connecting | WsStatus::Reconnecting { .. } => {
+                        ("◌", Style::default().fg(theme.colors.warning))
+                    }
                     WsStatus::Disconnected => ("○", Style::default().fg(theme.colors.muted)),
                     WsStatus::Error(_) => ("✕", Style::default().fg(theme.colors.error)),
                 };
                 let label = match &session.status {
                     WsStatus::Connected { connected_at } => {
                         let dur = chrono::Utc::now() - connected_at;
-                        format!(" Connected ({}s) {} msgs", dur.num_seconds(), session.messages.len())
+                        format!(
+                            " Connected ({}s) {} msgs",
+                            dur.num_seconds(),
+                            session.messages.len()
+                        )
                     }
                     WsStatus::Connecting => " Connecting...".to_string(),
-                    WsStatus::Error(e) => format!(" Error: {}", e),
+                    WsStatus::Error(e) => format!(" Error: {e}"),
                     _ => " Disconnected".to_string(),
                 };
                 Line::from(vec![
-                    Span::styled(format!(" {} ", dot), dot_style),
+                    Span::styled(format!(" {dot} "), dot_style),
                     Span::styled("WS", theme.protocol_style_ws()),
                     Span::styled(label, Style::default().fg(theme.colors.foreground)),
                 ])
             } else {
-                Line::from(Span::styled(" WS — Press Enter to connect", theme.muted_style()))
+                Line::from(Span::styled(
+                    " WS — Press Enter to connect",
+                    theme.muted_style(),
+                ))
             }
         }
         Protocol::Sse => {
@@ -704,16 +715,19 @@ fn render_response_tab_bar(app: &mut App, frame: &mut Frame, area: Rect) {
                 let label = match &session.status {
                     SseStatus::Connected => format!(" Connected ({} events)", session.events.len()),
                     SseStatus::Connecting => " Connecting...".to_string(),
-                    SseStatus::Error(e) => format!(" Error: {}", e),
-                    _ => " Disconnected".to_string(),
+                    SseStatus::Error(e) => format!(" Error: {e}"),
+                    SseStatus::Disconnected => " Disconnected".to_string(),
                 };
                 Line::from(vec![
-                    Span::styled(format!(" {} ", dot), dot_style),
+                    Span::styled(format!(" {dot} "), dot_style),
                     Span::styled("SSE", theme.protocol_style_sse()),
                     Span::styled(label, Style::default().fg(theme.colors.foreground)),
                 ])
             } else {
-                Line::from(Span::styled(" SSE — Press Enter to connect", theme.muted_style()))
+                Line::from(Span::styled(
+                    " SSE — Press Enter to connect",
+                    theme.muted_style(),
+                ))
             }
         }
         _ => {
@@ -728,10 +742,7 @@ fn render_response_tab_bar(app: &mut App, frame: &mut Frame, area: Rect) {
                         format!(" {} ", resp.timing.format_total()),
                         Style::default().fg(theme.colors.foreground),
                     ),
-                    Span::styled(
-                        format!(" {} ", resp.size.format()),
-                        theme.muted_style(),
-                    ),
+                    Span::styled(format!(" {} ", resp.size.format()), theme.muted_style()),
                 ])
             } else {
                 Line::from(Span::styled(" No response yet", theme.muted_style()))
@@ -800,7 +811,11 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
 
     let border_style = border_style_for(app, focused);
 
-    let title = if focused { " Response [j/k scroll] " } else { " Response " };
+    let title = if focused {
+        " Response [j/k scroll] "
+    } else {
+        " Response "
+    };
     let block = Block::default()
         .title(Span::styled(
             title,
@@ -825,10 +840,10 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
         ResponseTabKind::Body => {
             let body = response.body_text().unwrap_or("[binary data]");
             // Try JSON syntax highlighting first
-            let content_type = response
-                .header_value("content-type")
-                .unwrap_or("");
-            let is_json = content_type.contains("json") || body.trim_start().starts_with('{') || body.trim_start().starts_with('[');
+            let content_type = response.header_value("content-type").unwrap_or("");
+            let is_json = content_type.contains("json")
+                || body.trim_start().starts_with('{')
+                || body.trim_start().starts_with('[');
 
             let paragraph = if is_json {
                 let lines = crate::utils::pretty_print::highlight_json(
@@ -836,8 +851,7 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                     &theme.colors.syntax,
                     theme.colors.foreground,
                 );
-                Paragraph::new(lines)
-                    .scroll((scroll_offset as u16, 0))
+                Paragraph::new(lines).scroll((scroll_offset as u16, 0))
             } else {
                 Paragraph::new(crate::utils::pretty_print::pretty_xml(body))
                     .style(Style::default().fg(theme.colors.foreground))
@@ -887,10 +901,7 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                                     .add_modifier(Modifier::BOLD),
                             ),
                             Span::styled(" = ", theme.muted_style()),
-                            Span::styled(
-                                &c.value,
-                                Style::default().fg(theme.colors.foreground),
-                            ),
+                            Span::styled(&c.value, Style::default().fg(theme.colors.foreground)),
                         ])
                     })
                     .collect();
@@ -920,10 +931,10 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                 Line::from(vec![
                     Span::styled("TLS Handshake:   ", theme.muted_style()),
                     Span::styled(
-                        timing
-                            .tls_handshake
-                            .map(|d| format!("{:.1}ms", d.as_secs_f64() * 1000.0))
-                            .unwrap_or_else(|| "N/A".to_string()),
+                        timing.tls_handshake.map_or_else(
+                            || "N/A".to_string(),
+                            |d| format!("{:.1}ms", d.as_secs_f64() * 1000.0),
+                        ),
                         Style::default().fg(theme.colors.foreground),
                     ),
                 ]),
@@ -943,10 +954,17 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                 ]),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Total:           ", Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        "Total:           ",
+                        Style::default()
+                            .fg(theme.colors.accent)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled(
                         timing.format_total(),
-                        Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(theme.colors.accent)
+                            .add_modifier(Modifier::BOLD),
                     ),
                 ]),
             ];
@@ -954,8 +972,7 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
         }
         ResponseTabKind::Assertions => {
             if response.assertion_results.is_empty() {
-                let p = Paragraph::new("No assertion results")
-                    .style(theme.muted_style());
+                let p = Paragraph::new("No assertion results").style(theme.muted_style());
                 frame.render_widget(p, inner);
             } else {
                 let lines: Vec<Line> = response
@@ -968,11 +985,8 @@ fn render_http_response(app: &mut App, frame: &mut Frame, area: Rect) {
                             ("FAIL", theme.error_style())
                         };
                         Line::from(vec![
-                            Span::styled(format!(" [{}] ", icon), style),
-                            Span::styled(
-                                &r.message,
-                                Style::default().fg(theme.colors.foreground),
-                            ),
+                            Span::styled(format!(" [{icon}] "), style),
+                            Span::styled(&r.message, Style::default().fg(theme.colors.foreground)),
                         ])
                     })
                     .collect();
@@ -1009,7 +1023,9 @@ fn render_ws_response(app: &mut App, frame: &mut Frame, area: Rect) {
             let msg_block = Block::default()
                 .title(Span::styled(
                     " Messages ",
-                    Style::default().fg(theme.colors.foreground).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme.colors.foreground)
+                        .add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)
                 .border_set(theme.border_set())
@@ -1031,24 +1047,34 @@ fn render_ws_response(app: &mut App, frame: &mut Frame, area: Rect) {
                     scroll
                 };
 
-                let lines: Vec<Line> = session.messages.iter()
+                let lines: Vec<Line> = session
+                    .messages
+                    .iter()
                     .skip(start)
                     .take(visible_height)
                     .map(|msg| {
                         let time = msg.timestamp.format("%H:%M:%S").to_string();
                         let (arrow, arrow_style) = match msg.direction {
-                            MessageDirection::Sent => ("→", Style::default().fg(theme.colors.accent)),
-                            MessageDirection::Received => ("←", Style::default().fg(theme.colors.success)),
+                            MessageDirection::Sent => {
+                                ("→", Style::default().fg(theme.colors.accent))
+                            }
+                            MessageDirection::Received => {
+                                ("←", Style::default().fg(theme.colors.success))
+                            }
                         };
                         let content = match &msg.content {
                             WsContent::Text(t) => {
-                                if t.len() > 200 { format!("{}…", &t[..200]) } else { t.clone() }
+                                if t.len() > 200 {
+                                    format!("{}…", &t[..200])
+                                } else {
+                                    t.clone()
+                                }
                             }
                             WsContent::Binary(b) => format!("[Binary: {} bytes]", b.len()),
                         };
                         Line::from(vec![
-                            Span::styled(format!("[{}] ", time), theme.muted_style()),
-                            Span::styled(format!("{} ", arrow), arrow_style),
+                            Span::styled(format!("[{time}] "), theme.muted_style()),
+                            Span::styled(format!("{arrow} "), arrow_style),
                             Span::styled(content, Style::default().fg(theme.colors.foreground)),
                         ])
                     })
@@ -1069,13 +1095,18 @@ fn render_ws_response(app: &mut App, frame: &mut Frame, area: Rect) {
             let in_insert = app.mode == AppMode::Insert && focused;
             let input_border = border_style_for(app, in_insert);
 
-            let mut title_spans = vec![
-                Span::styled(" Send ", Style::default().fg(theme.colors.foreground).add_modifier(Modifier::BOLD)),
-            ];
+            let mut title_spans = vec![Span::styled(
+                " Send ",
+                Style::default()
+                    .fg(theme.colors.foreground)
+                    .add_modifier(Modifier::BOLD),
+            )];
             if in_insert {
                 title_spans.push(Span::styled(
                     "[INSERT] ",
-                    Style::default().fg(theme.colors.success).add_modifier(Modifier::DIM),
+                    Style::default()
+                        .fg(theme.colors.success)
+                        .add_modifier(Modifier::DIM),
                 ));
             }
 
@@ -1092,7 +1123,10 @@ fn render_ws_response(app: &mut App, frame: &mut Frame, area: Rect) {
             let input_text = if tab.ws_message_input.is_empty() && !in_insert {
                 Span::styled("Press 'i' to type a message...", theme.muted_style())
             } else {
-                Span::styled(&tab.ws_message_input, Style::default().fg(theme.colors.foreground))
+                Span::styled(
+                    &tab.ws_message_input,
+                    Style::default().fg(theme.colors.foreground),
+                )
             };
 
             frame.render_widget(
@@ -1103,7 +1137,10 @@ fn render_ws_response(app: &mut App, frame: &mut Frame, area: Rect) {
         ResponseTabKind::WsInfo => {
             let border_style = border_style_for(app, focused);
             let block = Block::default()
-                .title(Span::styled(" Connection Info ", Style::default().fg(theme.colors.foreground)))
+                .title(Span::styled(
+                    " Connection Info ",
+                    Style::default().fg(theme.colors.foreground),
+                ))
                 .borders(Borders::ALL)
                 .border_set(theme.border_set())
                 .border_style(border_style);
@@ -1118,9 +1155,11 @@ fn render_ws_response(app: &mut App, frame: &mut Frame, area: Rect) {
                         format!("Connected ({}s)", dur.num_seconds())
                     }
                     WsStatus::Connecting => "Connecting...".to_string(),
-                    WsStatus::Reconnecting { attempt, .. } => format!("Reconnecting (attempt {})", attempt),
+                    WsStatus::Reconnecting { attempt, .. } => {
+                        format!("Reconnecting (attempt {attempt})")
+                    }
                     WsStatus::Disconnected => "Disconnected".to_string(),
-                    WsStatus::Error(e) => format!("Error: {}", e),
+                    WsStatus::Error(e) => format!("Error: {e}"),
                 };
                 let lines = vec![
                     Line::from(vec![
@@ -1167,7 +1206,9 @@ fn render_sse_response(app: &mut App, frame: &mut Frame, area: Rect) {
             let block = Block::default()
                 .title(Span::styled(
                     " Events ",
-                    Style::default().fg(theme.colors.foreground).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme.colors.foreground)
+                        .add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)
                 .border_set(theme.border_set())
@@ -1188,7 +1229,9 @@ fn render_sse_response(app: &mut App, frame: &mut Frame, area: Rect) {
                     scroll
                 };
 
-                let lines: Vec<Line> = session.events.iter()
+                let lines: Vec<Line> = session
+                    .events
+                    .iter()
                     .skip(start)
                     .take(visible_height)
                     .map(|evt| {
@@ -1201,19 +1244,19 @@ fn render_sse_response(app: &mut App, frame: &mut Frame, area: Rect) {
                         };
 
                         let mut spans = vec![
-                            Span::styled(format!("[{}] ", time), theme.muted_style()),
+                            Span::styled(format!("[{time}] "), theme.muted_style()),
                             Span::styled(
-                                format!("[{}] ", event_type),
+                                format!("[{event_type}] "),
                                 Style::default().fg(theme.colors.accent),
                             ),
-                            Span::styled(data_preview, Style::default().fg(theme.colors.foreground)),
+                            Span::styled(
+                                data_preview,
+                                Style::default().fg(theme.colors.foreground),
+                            ),
                         ];
 
                         if let Some(ref id) = evt.id {
-                            spans.push(Span::styled(
-                                format!(" (id:{})", id),
-                                theme.muted_style(),
-                            ));
+                            spans.push(Span::styled(format!(" (id:{id})"), theme.muted_style()));
                         }
 
                         Line::from(spans)
@@ -1232,7 +1275,9 @@ fn render_sse_response(app: &mut App, frame: &mut Frame, area: Rect) {
             let block = Block::default()
                 .title(Span::styled(
                     " Accumulated Text ",
-                    Style::default().fg(theme.colors.foreground).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme.colors.foreground)
+                        .add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)
                 .border_set(theme.border_set())
@@ -1255,7 +1300,10 @@ fn render_sse_response(app: &mut App, frame: &mut Frame, area: Rect) {
         }
         ResponseTabKind::SseInfo => {
             let block = Block::default()
-                .title(Span::styled(" Connection Info ", Style::default().fg(theme.colors.foreground)))
+                .title(Span::styled(
+                    " Connection Info ",
+                    Style::default().fg(theme.colors.foreground),
+                ))
                 .borders(Borders::ALL)
                 .border_set(theme.border_set())
                 .border_style(border_style);
@@ -1268,7 +1316,7 @@ fn render_sse_response(app: &mut App, frame: &mut Frame, area: Rect) {
                     SseStatus::Connected => "Connected".to_string(),
                     SseStatus::Connecting => "Connecting...".to_string(),
                     SseStatus::Disconnected => "Disconnected".to_string(),
-                    SseStatus::Error(e) => format!("Error: {}", e),
+                    SseStatus::Error(e) => format!("Error: {e}"),
                 };
                 let lines = vec![
                     Line::from(vec![
@@ -1377,7 +1425,9 @@ fn render_status_bar(app: &mut App, frame: &mut Frame, area: Rect) {
         match app.focus {
             FocusArea::Sidebar => " Esc:global  j/k:nav  Tab:next  ?:help ",
             FocusArea::UrlBar => " Esc:global  i:edit  m:method/protocol  Enter:send  Tab:next ",
-            FocusArea::RequestTabs | FocusArea::ResponseTabs => " Esc:global  h/l:switch tab  1-5:jump  Tab:next ",
+            FocusArea::RequestTabs | FocusArea::ResponseTabs => {
+                " Esc:global  h/l:switch tab  1-5:jump  Tab:next "
+            }
             FocusArea::ResponseBody => {
                 use crate::core::request::Protocol;
                 match app.active_tab().request.protocol {
@@ -1394,7 +1444,7 @@ fn render_status_bar(app: &mut App, frame: &mut Frame, area: Rect) {
     let status_line = Line::from(vec![
         mode_span,
         Span::styled(
-            format!("  {}  ", focus_label),
+            format!("  {focus_label}  "),
             Style::default().fg(theme.colors.foreground),
         ),
         Span::styled(
@@ -1419,11 +1469,13 @@ fn render_status_bar(app: &mut App, frame: &mut Frame, area: Rect) {
     // We render the left portion, then overlay the help hint on the right.
     let bar_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(0), Constraint::Length(help_hint.len() as u16)])
+        .constraints([
+            Constraint::Min(0),
+            Constraint::Length(help_hint.len() as u16),
+        ])
         .split(area);
 
-    let left = Paragraph::new(status_line)
-        .style(Style::default().bg(theme.colors.background));
+    let left = Paragraph::new(status_line).style(Style::default().bg(theme.colors.background));
     frame.render_widget(left, bar_chunks[0]);
 
     let right = Paragraph::new(help_hint)
@@ -1465,15 +1517,13 @@ fn render_notification(
 
     frame.render_widget(Clear, toast_area);
 
-    let toast = Paragraph::new(msg)
-        .alignment(Alignment::Left)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_set(theme.border_set())
-                .border_style(Style::default().fg(border_color))
-                .style(Style::default().bg(theme.colors.background)),
-        );
+    let toast = Paragraph::new(msg).alignment(Alignment::Left).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_set(theme.border_set())
+            .border_style(Style::default().fg(border_color))
+            .style(Style::default().bg(theme.colors.background)),
+    );
 
     frame.render_widget(toast, toast_area);
 }
@@ -1505,15 +1555,13 @@ fn render_loading_indicator(app: &App, frame: &mut Frame, area: Rect) {
 
     frame.render_widget(Clear, loading_area);
 
-    let loading = Paragraph::new(label)
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_set(theme.border_set())
-                .border_style(Style::default().fg(theme.colors.warning))
-                .style(Style::default().bg(theme.colors.background)),
-        );
+    let loading = Paragraph::new(label).alignment(Alignment::Center).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_set(theme.border_set())
+            .border_style(Style::default().fg(theme.colors.warning))
+            .style(Style::default().bg(theme.colors.background)),
+    );
     frame.render_widget(loading, loading_area);
 }
 
@@ -1533,10 +1581,10 @@ fn render_modal(app: &App, frame: &mut Frame, kind: &ModalKind, area: Rect) {
         ModalKind::Import | ModalKind::Export | ModalKind::CurlImport => (60, 40),
         ModalKind::LoadTestConfig => (60, 60),
         ModalKind::DiffSelector => (50, 40),
-        ModalKind::RenameTab => (40, 15),
+        ModalKind::RenameTab | ModalKind::RenameCollection(_) | ModalKind::RenameRequest { .. } => {
+            (40, 15)
+        }
         ModalKind::CollectionPicker => (50, 50),
-        ModalKind::RenameCollection(_) => (40, 15),
-        ModalKind::RenameRequest { .. } => (40, 15),
     };
 
     let modal_area = centered_rect(width_pct, height_pct, area);
@@ -1587,7 +1635,7 @@ fn render_help_modal(app: &App, frame: &mut Frame, area: Rect) {
     let heading = |text: &'static str| Line::from(Span::styled(text, heading_style));
     let row = |key: &'static str, desc: &'static str| {
         Line::from(vec![
-            Span::styled(format!("  {:<18}", key), key_style),
+            Span::styled(format!("  {key:<18}"), key_style),
             Span::styled(desc, desc_style),
         ])
     };
@@ -1796,23 +1844,18 @@ fn render_search_modal(app: &App, frame: &mut Frame, area: Rect) {
                 let method_style = r
                     .method
                     .as_ref()
-                    .map(|m| theme.method_style(m))
-                    .unwrap_or(theme.muted_style());
+                    .map_or(theme.muted_style(), |m| theme.method_style(m));
                 let method_label = r
                     .method
                     .as_ref()
-                    .map(|m| m.as_str())
-                    .unwrap_or("???");
+                    .map_or("???", super::super::core::request::HttpMethod::as_str);
                 ratatui::widgets::ListItem::new(Line::from(vec![
-                    Span::styled(format!("{:<7} ", method_label), method_style),
-                    Span::styled(
-                        &r.name,
-                        Style::default().fg(theme.colors.foreground),
-                    ),
+                    Span::styled(format!("{method_label:<7} "), method_style),
+                    Span::styled(&r.name, Style::default().fg(theme.colors.foreground)),
                     Span::styled(
                         r.collection_name
                             .as_deref()
-                            .map(|c| format!("  ({})", c))
+                            .map(|c| format!("  ({c})"))
                             .unwrap_or_default(),
                         theme.muted_style(),
                     ),
@@ -1850,8 +1893,18 @@ fn render_confirm_modal(app: &App, frame: &mut Frame, area: Rect, message: &str)
         )),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  [Y]es  ", Style::default().fg(theme.colors.success).add_modifier(Modifier::BOLD)),
-            Span::styled("  [N]o  ", Style::default().fg(theme.colors.error).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  [Y]es  ",
+                Style::default()
+                    .fg(theme.colors.success)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "  [N]o  ",
+                Style::default()
+                    .fg(theme.colors.error)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]),
     ];
 
@@ -1890,10 +1943,7 @@ fn render_rename_modal(app: &App, frame: &mut Frame, area: Rect) {
         ])
         .split(inner);
 
-    let label = Paragraph::new(Span::styled(
-        "  Enter new name:",
-        theme.muted_style(),
-    ));
+    let label = Paragraph::new(Span::styled("  Enter new name:", theme.muted_style()));
     frame.render_widget(label, input_chunks[0]);
 
     let input_text = format!("  {}█", app.rename_input);
@@ -1945,10 +1995,7 @@ fn render_collection_picker_modal(app: &App, frame: &mut Frame, area: Rect) {
         ])
         .split(inner);
 
-    let label = Paragraph::new(Span::styled(
-        "  Select a collection:",
-        theme.muted_style(),
-    ));
+    let label = Paragraph::new(Span::styled("  Select a collection:", theme.muted_style()));
     frame.render_widget(label, chunks[0]);
 
     let items: Vec<ratatui::widgets::ListItem> = app
@@ -1967,7 +2014,12 @@ fn render_collection_picker_modal(app: &App, frame: &mut Frame, area: Rect) {
                 Style::default().fg(theme.colors.foreground)
             };
             ratatui::widgets::ListItem::new(Line::from(Span::styled(
-                format!("{}{}  ({} requests)", marker, coll.name, coll.request_count()),
+                format!(
+                    "{}{}  ({} requests)",
+                    marker,
+                    coll.name,
+                    coll.request_count()
+                ),
                 style,
             )))
         })
@@ -2011,10 +2063,7 @@ fn render_rename_collection_modal(app: &App, frame: &mut Frame, area: Rect) {
         ])
         .split(inner);
 
-    let label = Paragraph::new(Span::styled(
-        "  Enter new name:",
-        theme.muted_style(),
-    ));
+    let label = Paragraph::new(Span::styled("  Enter new name:", theme.muted_style()));
     frame.render_widget(label, input_chunks[0]);
 
     let input_text = format!("  {}█", app.rename_input);
@@ -2059,10 +2108,7 @@ fn render_rename_request_modal(app: &App, frame: &mut Frame, area: Rect) {
         ])
         .split(inner);
 
-    let label = Paragraph::new(Span::styled(
-        "  Enter new name:",
-        theme.muted_style(),
-    ));
+    let label = Paragraph::new(Span::styled("  Enter new name:", theme.muted_style()));
     frame.render_widget(label, input_chunks[0]);
 
     let input_text = format!("  {}█", app.rename_input);
@@ -2108,10 +2154,7 @@ fn render_import_modal(app: &App, frame: &mut Frame, area: Rect) {
         ])
         .split(inner);
 
-    let label = Paragraph::new(Span::styled(
-        "  Enter file path:",
-        theme.muted_style(),
-    ));
+    let label = Paragraph::new(Span::styled("  Enter file path:", theme.muted_style()));
     frame.render_widget(label, chunks[0]);
 
     let input_text = format!("  {}\u{2588}", app.modal_input);
@@ -2221,7 +2264,12 @@ fn render_command_palette(app: &App, frame: &mut Frame, area: Rect) {
     frame.render_widget(Clear, palette_area);
 
     let input = Paragraph::new(Line::from(vec![
-        Span::styled(" : ", Style::default().fg(theme.colors.warning).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " : ",
+            Style::default()
+                .fg(theme.colors.warning)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(
             &app.command_input,
             Style::default().fg(theme.colors.foreground),
@@ -2257,16 +2305,17 @@ fn render_chain_runner(app: &App, frame: &mut Frame, area: Rect) {
     let chain_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // header
+            Constraint::Length(3), // header
             Constraint::Min(0),    // step list
             Constraint::Length(6), // extracted variables
         ])
         .split(area);
 
     // ── Header ──
-    let chain_name = app.active_chain_def.as_ref()
-        .map(|c| c.name.as_str())
-        .unwrap_or("Chain");
+    let chain_name = app
+        .active_chain_def
+        .as_ref()
+        .map_or("Chain", |c| c.name.as_str());
 
     let status_text = if let Some(ref state) = app.active_chain {
         if state.running {
@@ -2279,24 +2328,35 @@ fn render_chain_runner(app: &App, frame: &mut Frame, area: Rect) {
         "Idle".to_string()
     };
 
-    let running = app.active_chain.as_ref().map(|s| s.running).unwrap_or(false);
+    let running = app.active_chain.as_ref().is_some_and(|s| s.running);
     let status_style = if running {
-        Style::default().fg(theme.colors.warning).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(theme.colors.warning)
+            .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(theme.colors.success).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(theme.colors.success)
+            .add_modifier(Modifier::BOLD)
     };
 
     let header = Paragraph::new(Line::from(vec![
         Span::styled(
-            format!(" {} ", chain_name),
-            Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD),
+            format!(" {chain_name} "),
+            Style::default()
+                .fg(theme.colors.accent)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(" | ", theme.muted_style()),
         Span::styled(status_text, status_style),
     ]))
     .block(
         Block::default()
-            .title(Span::styled(" Chain Runner ", Style::default().fg(theme.colors.foreground).add_modifier(Modifier::BOLD)))
+            .title(Span::styled(
+                " Chain Runner ",
+                Style::default()
+                    .fg(theme.colors.foreground)
+                    .add_modifier(Modifier::BOLD),
+            ))
             .borders(Borders::ALL)
             .border_set(theme.border_set())
             .border_style(Style::default().fg(theme.colors.accent)),
@@ -2305,7 +2365,10 @@ fn render_chain_runner(app: &App, frame: &mut Frame, area: Rect) {
 
     // ── Step list ──
     let steps_block = Block::default()
-        .title(Span::styled(" Steps ", Style::default().fg(theme.colors.foreground)))
+        .title(Span::styled(
+            " Steps ",
+            Style::default().fg(theme.colors.foreground),
+        ))
         .borders(Borders::ALL)
         .border_set(theme.border_set())
         .border_style(Style::default().fg(theme.colors.muted));
@@ -2314,39 +2377,66 @@ fn render_chain_runner(app: &App, frame: &mut Frame, area: Rect) {
 
     if let (Some(ref chain_def), Some(ref state)) = (&app.active_chain_def, &app.active_chain) {
         let visible_height = inner_steps.height as usize;
-        let scroll = app.chain_scroll.min(chain_def.steps.len().saturating_sub(1));
+        let scroll = app
+            .chain_scroll
+            .min(chain_def.steps.len().saturating_sub(1));
 
-        let step_items: Vec<ListItem> = chain_def.steps.iter().enumerate()
+        let step_items: Vec<ListItem> = chain_def
+            .steps
+            .iter()
+            .enumerate()
             .skip(scroll)
             .take(visible_height)
             .map(|(i, step)| {
-                let status = state.step_statuses.get(i).unwrap_or(&ChainStepStatus::Pending);
+                let status = state
+                    .step_statuses
+                    .get(i)
+                    .unwrap_or(&ChainStepStatus::Pending);
 
                 let (icon, icon_style) = match status {
                     ChainStepStatus::Pending => ("  ", Style::default().fg(theme.colors.muted)),
-                    ChainStepStatus::Running => ("  ", Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD)),
-                    ChainStepStatus::Success { .. } => ("  ", Style::default().fg(theme.colors.success)),
-                    ChainStepStatus::Failed { .. } => ("  ", Style::default().fg(theme.colors.error)),
+                    ChainStepStatus::Running => (
+                        "  ",
+                        Style::default()
+                            .fg(theme.colors.accent)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    ChainStepStatus::Success { .. } => {
+                        ("  ", Style::default().fg(theme.colors.success))
+                    }
+                    ChainStepStatus::Failed { .. } => {
+                        ("  ", Style::default().fg(theme.colors.error))
+                    }
                     ChainStepStatus::Skipped { .. } => ("  ", theme.muted_style()),
                 };
 
                 // Find request name from collection
-                let req_name = app.active_chain_coll_idx
+                let req_name = app
+                    .active_chain_coll_idx
                     .and_then(|ci| app.collections.get(ci))
                     .and_then(|c| c.find_request(&step.request_id))
-                    .map(|r| format!("{} {}", r.method, r.name))
-                    .unwrap_or_else(|| format!("Request {}", &step.request_id.to_string()[..8]));
+                    .map_or_else(
+                        || format!("Request {}", &step.request_id.to_string()[..8]),
+                        |r| format!("{} {}", r.method, r.name),
+                    );
 
                 let detail = match status {
-                    ChainStepStatus::Success { status, duration_ms } => {
-                        format!("  {} {}ms", status, duration_ms)
+                    ChainStepStatus::Success {
+                        status,
+                        duration_ms,
+                    } => {
+                        format!("  {status} {duration_ms}ms")
                     }
                     ChainStepStatus::Failed { error } => {
-                        let short = if error.len() > 40 { &error[..40] } else { error };
-                        format!("  {}", short)
+                        let short = if error.len() > 40 {
+                            &error[..40]
+                        } else {
+                            error
+                        };
+                        format!("  {short}")
                     }
                     ChainStepStatus::Skipped { reason } => {
-                        format!("  {}", reason)
+                        format!("  {reason}")
                     }
                     _ => String::new(),
                 };
@@ -2363,7 +2453,9 @@ fn render_chain_runner(app: &App, frame: &mut Frame, area: Rect) {
                     Span::styled(
                         req_name,
                         if is_current {
-                            Style::default().fg(theme.colors.foreground).add_modifier(Modifier::BOLD)
+                            Style::default()
+                                .fg(theme.colors.foreground)
+                                .add_modifier(Modifier::BOLD)
                         } else {
                             Style::default().fg(theme.colors.foreground)
                         },
@@ -2385,7 +2477,10 @@ fn render_chain_runner(app: &App, frame: &mut Frame, area: Rect) {
 
     // ── Extracted variables ──
     let vars_block = Block::default()
-        .title(Span::styled(" Variables ", Style::default().fg(theme.colors.foreground)))
+        .title(Span::styled(
+            " Variables ",
+            Style::default().fg(theme.colors.foreground),
+        ))
         .borders(Borders::ALL)
         .border_set(theme.border_set())
         .border_style(Style::default().fg(theme.colors.muted));
@@ -2402,19 +2497,19 @@ fn render_chain_runner(app: &App, frame: &mut Frame, area: Rect) {
             let mut vars: Vec<(&String, &String)> = state.extracted_variables.iter().collect();
             vars.sort_by_key(|(k, _)| k.as_str());
 
-            let var_items: Vec<ListItem> = vars.iter()
+            let var_items: Vec<ListItem> = vars
+                .iter()
                 .take(inner_vars.height as usize)
                 .map(|(name, value)| {
                     let line = Line::from(vec![
                         Span::styled(
-                            format!("  {} ", name),
-                            Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD),
+                            format!("  {name} "),
+                            Style::default()
+                                .fg(theme.colors.accent)
+                                .add_modifier(Modifier::BOLD),
                         ),
                         Span::styled("= ", theme.muted_style()),
-                        Span::styled(
-                            value.as_str(),
-                            Style::default().fg(theme.colors.foreground),
-                        ),
+                        Span::styled(value.as_str(), Style::default().fg(theme.colors.foreground)),
                     ]);
                     ListItem::new(line)
                 })

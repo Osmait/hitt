@@ -75,7 +75,10 @@ fn curl_export_resolves_variables() {
     let req = Request::new("Test", HttpMethod::GET, "{{base_url}}/users");
     let mut resolver = VariableResolver::new();
     let mut vars = std::collections::HashMap::new();
-    vars.insert("base_url".to_string(), "https://api.example.com".to_string());
+    vars.insert(
+        "base_url".to_string(),
+        "https://api.example.com".to_string(),
+    );
     resolver.add_scope("env", vars);
     let curl = to_curl(&req, &resolver);
     assert!(curl.contains("https://api.example.com/users"));
@@ -94,8 +97,12 @@ fn markdown_collection_heading() {
 fn markdown_contains_requests() {
     let mut c = Collection::new("Test API");
     c.add_request(
-        Request::new("Get Users", HttpMethod::GET, "https://api.example.com/users")
-            .with_header("Accept", "application/json"),
+        Request::new(
+            "Get Users",
+            HttpMethod::GET,
+            "https://api.example.com/users",
+        )
+        .with_header("Accept", "application/json"),
     );
     let md = generate_docs(&c);
     assert!(md.contains("`GET`"));
@@ -108,9 +115,9 @@ fn markdown_contains_requests() {
 fn markdown_folder_headings() {
     let mut c = Collection::new("Test API");
     let folder = c.add_folder("Authentication");
-    folder.push(hitt::core::collection::CollectionItem::Request(
+    folder.push(hitt::core::collection::CollectionItem::Request(Box::new(
         Request::new("Login", HttpMethod::POST, "/login"),
-    ));
+    )));
     let md = generate_docs(&c);
     assert!(md.contains("Authentication"));
     assert!(md.contains("Login"));
@@ -151,7 +158,8 @@ fn postman_export_preserves_requests() {
 #[test]
 fn postman_export_variables() {
     let mut c = Collection::new("Test");
-    c.variables.push(KeyValuePair::new("base_url", "https://api.example.com"));
+    c.variables
+        .push(KeyValuePair::new("base_url", "https://api.example.com"));
     let json = export_postman_collection(&c).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
     let vars = parsed["variable"].as_array().unwrap();

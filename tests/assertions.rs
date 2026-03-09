@@ -3,9 +3,7 @@ use uuid::Uuid;
 
 use hitt::core::request::KeyValuePair;
 use hitt::core::response::{RequestTiming, Response, ResponseBody, ResponseSize};
-use hitt::testing::assertion_engine::{
-    Assertion, AssertionEngine, AssertionKind, JsonType,
-};
+use hitt::testing::assertion_engine::{Assertion, AssertionEngine, AssertionKind, JsonType};
 
 fn make_response(status: u16, body: ResponseBody, headers: Vec<KeyValuePair>) -> Response {
     Response {

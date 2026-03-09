@@ -1,7 +1,5 @@
-#![allow(unused_imports, unused_variables, dead_code)]
-
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
@@ -12,16 +10,20 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use hitt::app::{self, App, FocusArea};
+use hitt::app::{self, App};
 use hitt::core;
 use hitt::event::{handle_event, EventHandler};
 use hitt::importers;
 use hitt::postman;
-use hitt::storage::{self, collections_store::CollectionsStore, config::AppConfig};
+use hitt::storage::{self, config::AppConfig};
 use hitt::ui;
 
 #[derive(Parser, Debug)]
-#[command(name = "hitt", version, about = "A fast, beautiful TUI alternative to Postman")]
+#[command(
+    name = "hitt",
+    version,
+    about = "A fast, beautiful TUI alternative to Postman"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<hitt::cli::Commands>,
@@ -75,22 +77,21 @@ async fn main() -> Result<()> {
 
     // Apply CLI overrides
     if let Some(theme) = &cli.theme {
-        config.theme = theme.clone();
+        config.theme = theme.as_str().into();
     }
 
     // Initialize app
     let mut app = App::new(config)?;
 
     // Load theme
-    if let Ok(theme) = ui::theme::Theme::load(&app.config.theme) {
+    if let Ok(theme) = ui::theme::Theme::load(app.config.theme.as_str()) {
         app.theme = theme;
     }
 
     // Load collection if specified
     if let Some(path) = &cli.collection {
-        match storage::collections_store::CollectionsStore::new(
-            app.config.collections_dir.clone(),
-        ) {
+        match storage::collections_store::CollectionsStore::new(app.config.collections_dir.clone())
+        {
             Ok(store) => {
                 if let Ok(collection) = store.load_collection(path) {
                     app.collections.push(collection);
@@ -171,7 +172,7 @@ async fn main() -> Result<()> {
 
     // Set initial URL if provided
     if let Some(url) = &cli.url {
-        app.active_tab_mut().request.url = url.clone();
+        app.active_tab_mut().request.url.clone_from(url);
         app.focus = app::FocusArea::UrlBar;
     }
 
@@ -194,7 +195,9 @@ async fn main() -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     // Event handler
-    let mut events = EventHandler::new(Duration::from_millis(100));
+    let mut events = EventHandler::new(Duration::from_millis(
+        hitt::core::constants::TUI_TICK_RATE_MS,
+    ));
     app.event_sender = Some(events.sender());
 
     // Main loop
@@ -210,7 +213,7 @@ async fn main() -> Result<()> {
     terminal.show_cursor()?;
 
     if let Err(err) = result {
-        eprintln!("Error: {}", err);
+        eprintln!("Error: {err}");
     }
 
     Ok(())

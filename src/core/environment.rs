@@ -17,11 +17,7 @@ impl Environment {
         }
     }
 
-    pub fn add_variable(
-        &mut self,
-        key: impl Into<String>,
-        value: impl Into<String>,
-    ) -> &mut Self {
+    pub fn add_variable(&mut self, key: impl Into<String>, value: impl Into<String>) -> &mut Self {
         let val = value.into();
         self.values.push(EnvironmentVariable {
             key: key.into(),
@@ -33,11 +29,7 @@ impl Environment {
         self
     }
 
-    pub fn add_secret(
-        &mut self,
-        key: impl Into<String>,
-        value: impl Into<String>,
-    ) -> &mut Self {
+    pub fn add_secret(&mut self, key: impl Into<String>, value: impl Into<String>) -> &mut Self {
         let val = value.into();
         self.values.push(EnvironmentVariable {
             key: key.into(),

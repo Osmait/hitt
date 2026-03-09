@@ -45,10 +45,7 @@ fn build_env_selector_line<'a>(app: &App, theme: &'a Theme) -> Line<'a> {
                         .fg(theme.colors.success)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    format!(" ({}/{})", active_idx, env_count),
-                    theme.muted_style(),
-                ),
+                Span::styled(format!(" ({active_idx}/{env_count})"), theme.muted_style()),
                 Span::styled(" v ", chevron_style),
             ])
         }
@@ -112,7 +109,7 @@ pub fn render_env_dropdown(app: &App, area: Rect, buf: &mut Buffer) {
             };
 
             let var_count = env.values.iter().filter(|v| v.enabled).count();
-            let var_label = format!(" ({} vars)", var_count);
+            let var_label = format!(" ({var_count} vars)");
 
             Line::from(vec![
                 Span::styled(indicator.to_string(), indicator_style),

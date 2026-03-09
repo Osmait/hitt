@@ -1,9 +1,12 @@
 pub mod auth;
 pub mod chain;
+pub mod chain_executor;
 pub mod client;
 pub mod collection;
+pub mod constants;
 pub mod cookie_jar;
 pub mod environment;
+pub mod helpers;
 pub mod history;
 pub mod request;
 pub mod response;

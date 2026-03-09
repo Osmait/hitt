@@ -23,15 +23,7 @@ impl HttpClient {
         Ok(Self { client })
     }
 
-    pub fn with_client(client: reqwest::Client) -> Self {
-        Self { client }
-    }
-
-    pub async fn send(
-        &self,
-        request: &Request,
-        resolver: &VariableResolver,
-    ) -> Result<Response> {
+    pub async fn send(&self, request: &Request, resolver: &VariableResolver) -> Result<Response> {
         let url = resolver.resolve(&request.url);
 
         // Build query params
@@ -51,7 +43,7 @@ impl HttpClient {
         };
 
         // Build request
-        let method = to_reqwest_method(&request.method);
+        let method = to_reqwest_method(request.method);
         let mut req_builder = self.client.request(method, &url_with_params);
 
         // Apply headers
@@ -68,10 +60,10 @@ impl HttpClient {
         req_builder = req_builder.headers(header_map);
 
         // Apply auth
-        req_builder = apply_auth(req_builder, &request.auth, resolver);
+        req_builder = apply_auth(req_builder, request.auth.as_ref(), resolver);
 
         // Apply body
-        req_builder = apply_body(req_builder, &request.body, resolver);
+        req_builder = apply_body(req_builder, request.body.as_ref(), resolver);
 
         // Send and time the request
         let start = Instant::now();
@@ -90,10 +82,7 @@ impl HttpClient {
             .headers()
             .iter()
             .map(|(k, v)| {
-                KeyValuePair::new(
-                    k.as_str().to_string(),
-                    v.to_str().unwrap_or("").to_string(),
-                )
+                KeyValuePair::new(k.as_str().to_string(), v.to_str().unwrap_or("").to_string())
             })
             .collect();
 
@@ -101,15 +90,15 @@ impl HttpClient {
             .headers()
             .get("content-type")
             .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
         let cookies: Vec<Cookie> = resp
             .cookies()
             .map(|c| Cookie {
                 name: c.name().to_string(),
                 value: c.value().to_string(),
-                domain: c.domain().map(|s| s.to_string()),
-                path: c.path().map(|s| s.to_string()),
+                domain: c.domain().map(std::string::ToString::to_string),
+                path: c.path().map(std::string::ToString::to_string),
                 expires: None,
                 http_only: c.http_only(),
                 secure: c.secure(),
@@ -150,7 +139,7 @@ impl Default for HttpClient {
     }
 }
 
-fn to_reqwest_method(method: &HttpMethod) -> reqwest::Method {
+fn to_reqwest_method(method: HttpMethod) -> reqwest::Method {
     match method {
         HttpMethod::GET => reqwest::Method::GET,
         HttpMethod::POST => reqwest::Method::POST,
@@ -163,9 +152,10 @@ fn to_reqwest_method(method: &HttpMethod) -> reqwest::Method {
     }
 }
 
+#[allow(clippy::similar_names)]
 fn apply_auth(
     mut builder: reqwest::RequestBuilder,
-    auth: &Option<AuthConfig>,
+    auth: Option<&AuthConfig>,
     resolver: &VariableResolver,
 ) -> reqwest::RequestBuilder {
     match auth {
@@ -199,20 +189,20 @@ fn apply_auth(
                 }
             }
         }
-        Some(AuthConfig::OAuth2 { token, .. }) => {
-            if let Some(t) = token {
-                let resolved = resolver.resolve(t);
-                builder = builder.bearer_auth(resolved);
-            }
+        Some(AuthConfig::OAuth2 { token: Some(t), .. }) => {
+            let resolved = resolver.resolve(t);
+            builder = builder.bearer_auth(resolved);
         }
-        _ => {}
+        Some(AuthConfig::OAuth2 { token: None, .. } | AuthConfig::Inherit | AuthConfig::None)
+        | None => {}
     }
     builder
 }
 
+#[allow(clippy::similar_names)]
 fn apply_body(
     builder: reqwest::RequestBuilder,
-    body: &Option<RequestBody>,
+    body: Option<&RequestBody>,
     resolver: &VariableResolver,
 ) -> reqwest::RequestBuilder {
     match body {
@@ -235,7 +225,9 @@ fn apply_body(
             content_type,
         }) => {
             let resolved = resolver.resolve(content);
-            builder.header("content-type", content_type.as_str()).body(resolved)
+            builder
+                .header("content-type", content_type.as_str())
+                .body(resolved)
         }
         Some(RequestBody::GraphQL { query, variables }) => {
             let mut gql = serde_json::json!({ "query": resolver.resolve(query) });

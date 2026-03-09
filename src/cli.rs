@@ -1,19 +1,27 @@
 use anyhow::{bail, Result};
-use clap::Subcommand;
+use clap::{Subcommand, ValueEnum};
 use serde_json::json;
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::core::auth::AuthConfig;
-use crate::core::chain::{evaluate_condition, extract_values, RequestChain};
+use crate::core::chain::RequestChain;
+use crate::core::chain_executor::{self, StepOutcome};
 use crate::core::client::HttpClient;
-use crate::core::collection::{Collection, CollectionItem};
-use crate::core::environment::Environment;
-use crate::core::request::{HttpMethod, KeyValuePair, Request, RequestBody};
+use crate::core::collection::Collection;
+use crate::core::helpers::{
+    find_collection, find_request_by_name, load_collections, load_environment, parse_headers,
+};
+use crate::core::request::{HttpMethod, Request, RequestBody};
 use crate::core::response::Response;
 use crate::core::variables::VariableResolver;
 use crate::storage::collections_store::CollectionsStore;
 use crate::storage::config::AppConfig;
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum BodyType {
+    Json,
+    Raw,
+}
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
@@ -63,8 +71,8 @@ pub enum Commands {
         header: Vec<String>,
         #[arg(short, long)]
         body: Option<String>,
-        #[arg(long, default_value = "json")]
-        body_type: String,
+        #[arg(long, value_enum, default_value = "json")]
+        body_type: BodyType,
     },
 
     /// Manage request chains
@@ -150,7 +158,18 @@ pub async fn run(cmd: Commands, config: &AppConfig) -> Result<()> {
             body,
             auth_bearer,
             auth_basic,
-        } => cmd_send(&method, &url, &header, body.as_deref(), auth_bearer.as_deref(), auth_basic.as_deref(), config).await,
+        } => {
+            cmd_send(
+                &method,
+                &url,
+                &header,
+                body.as_deref(),
+                auth_bearer.as_deref(),
+                auth_basic.as_deref(),
+                config,
+            )
+            .await
+        }
         Commands::Create {
             name,
             method,
@@ -159,7 +178,16 @@ pub async fn run(cmd: Commands, config: &AppConfig) -> Result<()> {
             header,
             body,
             body_type,
-        } => cmd_create(&name, &method, &url, &collection, &header, body.as_deref(), &body_type, config),
+        } => cmd_create(
+            &name,
+            &method,
+            &url,
+            &collection,
+            &header,
+            body.as_deref(),
+            body_type,
+            config,
+        ),
         Commands::Chain { action } => match action {
             ChainAction::List { collection } => cmd_chain_list(&collection, config),
             ChainAction::Run {
@@ -196,34 +224,6 @@ pub async fn run(cmd: Commands, config: &AppConfig) -> Result<()> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn load_collections(config: &AppConfig) -> Result<Vec<Collection>> {
-    let store = CollectionsStore::new(config.collections_dir.clone())?;
-    store.load_all()
-}
-
-fn find_collection<'a>(name: &str, collections: &'a [Collection]) -> Result<&'a Collection> {
-    collections
-        .iter()
-        .find(|c| c.name.eq_ignore_ascii_case(name))
-        .ok_or_else(|| anyhow::anyhow!("Collection '{}' not found", name))
-}
-
-fn load_environment(name: &str, config: &AppConfig) -> Result<Option<Environment>> {
-    let store = CollectionsStore::new(config.collections_dir.clone())?;
-    let environments = store.load_environments()?;
-    Ok(environments.into_iter().find(|e| e.name.eq_ignore_ascii_case(name)))
-}
-
-fn parse_headers(header_strings: &[String]) -> Vec<KeyValuePair> {
-    header_strings
-        .iter()
-        .filter_map(|s| {
-            let (key, value) = s.split_once(':')?;
-            Some(KeyValuePair::new(key.trim(), value.trim()))
-        })
-        .collect()
-}
-
 fn response_to_json(response: &Response) -> serde_json::Value {
     let headers: serde_json::Map<String, serde_json::Value> = response
         .headers
@@ -234,25 +234,16 @@ fn response_to_json(response: &Response) -> serde_json::Value {
     let body: serde_json::Value = response
         .body_text()
         .and_then(|text| serde_json::from_str(text).ok())
-        .unwrap_or_else(|| {
-            json!(response.body_text().unwrap_or(""))
-        });
+        .unwrap_or_else(|| json!(response.body_text().unwrap_or("")));
 
     json!({
         "status": response.status,
         "status_text": response.status_text,
         "headers": headers,
         "body": body,
-        "timing_ms": response.timing.total.as_millis() as u64,
+        "timing_ms": u64::try_from(response.timing.total.as_millis()).unwrap_or(u64::MAX),
         "size_bytes": response.size.total(),
     })
-}
-
-fn find_request_by_name<'a>(name: &str, collection: &'a Collection) -> Option<&'a Request> {
-    collection
-        .all_requests()
-        .into_iter()
-        .find(|r| r.name.eq_ignore_ascii_case(name))
 }
 
 // ---------------------------------------------------------------------------
@@ -304,8 +295,9 @@ async fn cmd_run(
 
     let (collection, request) = if let Some(coll_name) = collection_name {
         let coll = find_collection(coll_name, &collections)?;
-        let req = find_request_by_name(name, coll)
-            .ok_or_else(|| anyhow::anyhow!("Request '{}' not found in collection '{}'", name, coll_name))?;
+        let req = find_request_by_name(name, coll).ok_or_else(|| {
+            anyhow::anyhow!("Request '{name}' not found in collection '{coll_name}'")
+        })?;
         (coll, req)
     } else {
         // Search across all collections
@@ -316,7 +308,7 @@ async fn cmd_run(
                 break;
             }
         }
-        found.ok_or_else(|| anyhow::anyhow!("Request '{}' not found in any collection", name))?
+        found.ok_or_else(|| anyhow::anyhow!("Request '{name}' not found in any collection"))?
     };
 
     let environment = if let Some(env) = env_name {
@@ -335,7 +327,10 @@ async fn cmd_run(
 
     let client = HttpClient::new()?;
     let response = client.send(request, &resolver).await?;
-    println!("{}", serde_json::to_string_pretty(&response_to_json(&response))?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&response_to_json(&response))?
+    );
     Ok(())
 }
 
@@ -348,8 +343,9 @@ async fn cmd_send(
     auth_basic: Option<&str>,
     _config: &AppConfig,
 ) -> Result<()> {
+    #[allow(deprecated)]
     let http_method = HttpMethod::from_str(method)
-        .ok_or_else(|| anyhow::anyhow!("Invalid HTTP method: '{}'", method))?;
+        .ok_or_else(|| anyhow::anyhow!("Invalid HTTP method: '{method}'"))?;
 
     let mut request = Request::new("ad-hoc", http_method, url);
     request.headers = parse_headers(headers);
@@ -371,10 +367,14 @@ async fn cmd_send(
     let resolver = VariableResolver::new();
     let client = HttpClient::new()?;
     let response = client.send(&request, &resolver).await?;
-    println!("{}", serde_json::to_string_pretty(&response_to_json(&response))?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&response_to_json(&response))?
+    );
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_create(
     name: &str,
     method: &str,
@@ -382,23 +382,23 @@ fn cmd_create(
     collection_name: &str,
     headers: &[String],
     body: Option<&str>,
-    body_type: &str,
+    body_type: BodyType,
     config: &AppConfig,
 ) -> Result<()> {
+    #[allow(deprecated)]
     let http_method = HttpMethod::from_str(method)
-        .ok_or_else(|| anyhow::anyhow!("Invalid HTTP method: '{}'", method))?;
+        .ok_or_else(|| anyhow::anyhow!("Invalid HTTP method: '{method}'"))?;
 
     let mut request = Request::new(name, http_method, url);
     request.headers = parse_headers(headers);
 
     if let Some(body_str) = body {
         request.body = Some(match body_type {
-            "json" => RequestBody::Json(body_str.to_string()),
-            "raw" => RequestBody::Raw {
+            BodyType::Json => RequestBody::Json(body_str.to_string()),
+            BodyType::Raw => RequestBody::Raw {
                 content: body_str.to_string(),
                 content_type: "text/plain".to_string(),
             },
-            other => bail!("Unknown body type: '{}'. Use 'json' or 'raw'.", other),
         });
     }
 
@@ -409,16 +409,13 @@ fn cmd_create(
         .iter_mut()
         .find(|c| c.name.eq_ignore_ascii_case(collection_name));
 
-    match collection {
-        Some(coll) => {
-            coll.add_request(request);
-            store.save_collection(coll)?;
-        }
-        None => {
-            let mut coll = Collection::new(collection_name);
-            coll.add_request(request);
-            store.save_collection(&coll)?;
-        }
+    if let Some(coll) = collection {
+        coll.add_request(request);
+        store.save_collection(coll)?;
+    } else {
+        let mut coll = Collection::new(collection_name);
+        coll.add_request(request);
+        store.save_collection(&coll)?;
     }
 
     println!(
@@ -463,7 +460,9 @@ async fn cmd_chain_run(
         .chains
         .iter()
         .find(|ch| ch.name.eq_ignore_ascii_case(name))
-        .ok_or_else(|| anyhow::anyhow!("Chain '{}' not found in collection '{}'", name, collection_name))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("Chain '{name}' not found in collection '{collection_name}'")
+        })?;
 
     let environment = if let Some(env) = env_name {
         load_environment(env, config)?
@@ -472,61 +471,26 @@ async fn cmd_chain_run(
     };
 
     let client = HttpClient::new()?;
-    let mut extracted_variables: HashMap<String, String> = HashMap::new();
-    let mut last_response: Option<Response> = None;
     let mut steps_output: Vec<serde_json::Value> = Vec::new();
 
-    for (step_index, step) in chain.steps.iter().enumerate() {
-        // Check condition
-        if let Some(ref condition) = step.condition {
-            if !evaluate_condition(condition, last_response.as_ref(), &extracted_variables) {
-                steps_output.push(json!({
-                    "step": step_index + 1,
-                    "skipped": true,
-                    "reason": "Condition not met",
-                }));
-                continue;
-            }
-        }
-
-        // Find request
-        let request = match collection.find_request(&step.request_id) {
-            Some(req) => req.clone(),
-            None => {
-                steps_output.push(json!({
-                    "step": step_index + 1,
-                    "error": format!("Request {} not found in collection", step.request_id),
-                }));
-                break;
-            }
-        };
-
-        let request_name = request.name.clone();
-
-        // Build resolver with current extracted variables
-        let resolver = VariableResolver::from_context(
-            Some(&extracted_variables),
-            &collection.variables,
-            environment.as_ref(),
-            None,
-            None,
-        );
-
-        // Send request
-        match client.send(&request, &resolver).await {
-            Ok(response) => {
-                let status = response.status;
-                let duration_ms = response.timing.total.as_millis() as u64;
-
-                // Extract values
-                let new_vars = extract_values(&step.extractions, &response);
-                extracted_variables.extend(new_vars.clone());
-
-                let extractions_json: serde_json::Map<String, serde_json::Value> = new_vars
+    let extracted_variables = chain_executor::execute_chain(
+        &client,
+        collection,
+        chain,
+        environment.as_ref(),
+        |outcome| match outcome {
+            StepOutcome::Success {
+                step_index,
+                request_name,
+                status,
+                duration_ms,
+                extracted,
+                ..
+            } => {
+                let extractions_json: serde_json::Map<String, serde_json::Value> = extracted
                     .iter()
                     .map(|(k, v)| (k.clone(), json!(v)))
                     .collect();
-
                 steps_output.push(json!({
                     "step": step_index + 1,
                     "request": request_name,
@@ -534,24 +498,23 @@ async fn cmd_chain_run(
                     "timing_ms": duration_ms,
                     "extractions": extractions_json,
                 }));
-
-                last_response = Some(response);
             }
-            Err(e) => {
+            StepOutcome::Failed { step_index, error } => {
                 steps_output.push(json!({
                     "step": step_index + 1,
-                    "request": request_name,
-                    "error": e.to_string(),
+                    "error": error,
                 }));
-                break;
             }
-        }
-
-        // Apply delay
-        if let Some(delay) = step.delay_ms {
-            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-        }
-    }
+            StepOutcome::Skipped { step_index, reason } => {
+                steps_output.push(json!({
+                    "step": step_index + 1,
+                    "skipped": true,
+                    "reason": reason,
+                }));
+            }
+        },
+    )
+    .await;
 
     let variables_json: serde_json::Map<String, serde_json::Value> = extracted_variables
         .iter()
@@ -582,16 +545,19 @@ fn cmd_chain_create(
     let collection = collections
         .iter_mut()
         .find(|c| c.name.eq_ignore_ascii_case(collection_name))
-        .ok_or_else(|| anyhow::anyhow!("Collection '{}' not found", collection_name))?;
+        .ok_or_else(|| anyhow::anyhow!("Collection '{collection_name}' not found"))?;
 
     let all_requests = collection.all_requests();
 
     let mut chain = RequestChain::new(name);
-    chain.description = description.map(|s| s.to_string());
+    chain.description = description.map(std::string::ToString::to_string);
 
     let mut not_found = Vec::new();
     for step_name in step_names {
-        match all_requests.iter().find(|r| r.name.eq_ignore_ascii_case(step_name)) {
+        match all_requests
+            .iter()
+            .find(|r| r.name.eq_ignore_ascii_case(step_name))
+        {
             Some(req) => {
                 chain.add_step(req.id);
             }
@@ -633,7 +599,7 @@ fn cmd_chain_import(file: &PathBuf, collection_name: &str, config: &AppConfig) -
     let collection = collections
         .iter_mut()
         .find(|c| c.name.eq_ignore_ascii_case(collection_name))
-        .ok_or_else(|| anyhow::anyhow!("Collection '{}' not found", collection_name))?;
+        .ok_or_else(|| anyhow::anyhow!("Collection '{collection_name}' not found"))?;
 
     let chain = crate::importers::chain::import_chain(&content, collection)?;
     let chain_name = chain.name.clone();
@@ -653,12 +619,7 @@ fn cmd_chain_import(file: &PathBuf, collection_name: &str, config: &AppConfig) -
     Ok(())
 }
 
-async fn cmd_ws(
-    url: &str,
-    headers: &[String],
-    messages: &[String],
-    timeout: u64,
-) -> Result<()> {
+async fn cmd_ws(url: &str, headers: &[String], messages: &[String], timeout: u64) -> Result<()> {
     use crate::protocols::websocket::{self, WsCommand, WsEvent};
     use tokio::sync::mpsc;
 
@@ -673,7 +634,7 @@ async fn cmd_ws(
         while let Some(event) = event_rx.recv().await {
             match event {
                 WsEvent::Connected => return Ok(()),
-                WsEvent::Error(e) => return Err(anyhow::anyhow!("WebSocket error: {}", e)),
+                WsEvent::Error(e) => return Err(anyhow::anyhow!("WebSocket error: {e}")),
                 _ => {}
             }
         }
@@ -684,7 +645,7 @@ async fn cmd_ws(
     match connected {
         Ok(Ok(())) => {}
         Ok(Err(e)) => bail!(e),
-        Err(_) => bail!("WebSocket connection timed out after {}s", timeout),
+        Err(_) => bail!("WebSocket connection timed out after {timeout}s"),
     }
 
     // Send messages
@@ -694,11 +655,7 @@ async fn cmd_ws(
 
     // Collect responses until timeout
     let mut received = Vec::new();
-    let collect_timeout = if messages.is_empty() {
-        std::time::Duration::from_secs(timeout)
-    } else {
-        std::time::Duration::from_secs(timeout)
-    };
+    let collect_timeout = std::time::Duration::from_secs(timeout);
 
     let _ = tokio::time::timeout(collect_timeout, async {
         while let Some(event) = event_rx.recv().await {
@@ -717,7 +674,7 @@ async fn cmd_ws(
                     }));
                     break;
                 }
-                _ => {}
+                WsEvent::Connected => {}
             }
         }
     })
@@ -754,11 +711,12 @@ async fn cmd_sse(
     let parsed_headers = parse_headers(headers);
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<SseOutput>();
 
-    let cmd_tx = sse::connect(url, &parsed_headers, event_tx).await?;
+    let cmd_tx = sse::connect(url, &parsed_headers, event_tx)?;
 
-    let timeout_dur = duration
-        .map(std::time::Duration::from_secs)
-        .unwrap_or_else(|| std::time::Duration::from_secs(30));
+    let timeout_dur = duration.map_or_else(
+        || std::time::Duration::from_secs(30),
+        std::time::Duration::from_secs,
+    );
 
     let max = max_events.unwrap_or(usize::MAX);
     let mut count = 0;
@@ -783,7 +741,10 @@ async fn cmd_sse(
                     }
                 }
                 SseOutput::Error(e) => {
-                    eprintln!("{}", serde_json::to_string(&json!({"error": e})).unwrap_or_default());
+                    eprintln!(
+                        "{}",
+                        serde_json::to_string(&json!({"error": e})).unwrap_or_default()
+                    );
                     break;
                 }
                 SseOutput::Disconnected => break,

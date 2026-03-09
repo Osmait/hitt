@@ -20,7 +20,7 @@ impl CollectionsStore {
             for entry in std::fs::read_dir(&self.dir)? {
                 let entry = entry?;
                 let path = entry.path();
-                if path.extension().map(|e| e == "json").unwrap_or(false) {
+                if path.extension().is_some_and(|e| e == "json") {
                     if let Ok(collection) = self.load_collection(&path) {
                         collections.push(collection);
                     }
@@ -38,7 +38,7 @@ impl CollectionsStore {
 
     pub fn save_collection(&self, collection: &Collection) -> Result<PathBuf> {
         let filename = sanitize_filename(&collection.name);
-        let path = self.dir.join(format!("{}.json", filename));
+        let path = self.dir.join(format!("{filename}.json"));
         let content = serde_json::to_string_pretty(collection)?;
         std::fs::write(&path, content)?;
         Ok(path)
@@ -46,7 +46,7 @@ impl CollectionsStore {
 
     pub fn delete_collection(&self, collection: &Collection) -> Result<()> {
         let filename = sanitize_filename(&collection.name);
-        let path = self.dir.join(format!("{}.json", filename));
+        let path = self.dir.join(format!("{filename}.json"));
         if path.exists() {
             std::fs::remove_file(path)?;
         }
@@ -65,7 +65,7 @@ impl CollectionsStore {
             for entry in std::fs::read_dir(&dir)? {
                 let entry = entry?;
                 let path = entry.path();
-                if path.extension().map(|e| e == "json").unwrap_or(false) {
+                if path.extension().is_some_and(|e| e == "json") {
                     if let Ok(env) = self.load_environment(&path) {
                         environments.push(env);
                     }
@@ -85,7 +85,7 @@ impl CollectionsStore {
         let dir = self.environments_dir();
         std::fs::create_dir_all(&dir)?;
         let filename = sanitize_filename(&env.name);
-        let path = dir.join(format!("{}.json", filename));
+        let path = dir.join(format!("{filename}.json"));
         let content = serde_json::to_string_pretty(env)?;
         std::fs::write(&path, content)?;
         Ok(path)

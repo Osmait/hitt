@@ -3,9 +3,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, BorderType, Borders, Cell, Paragraph, Row, Table, Widget, Wrap,
-    },
+    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, Widget, Wrap},
 };
 
 use crate::app::{App, AppMode, FocusArea, RequestTabKind};
@@ -64,7 +62,7 @@ impl Widget for RequestPanel<'_> {
         let chunks = Layout::vertical([
             Constraint::Length(1), // method + url + send
             Constraint::Length(1), // sub-tab bar
-            Constraint::Min(1),   // sub-tab content
+            Constraint::Min(1),    // sub-tab content
         ])
         .split(inner);
 
@@ -78,7 +76,13 @@ impl Widget for RequestPanel<'_> {
 // URL bar:  [ METHOD v ]  https://example.com/api           [Send]
 // ---------------------------------------------------------------------------
 
-fn render_url_bar(area: Rect, buf: &mut Buffer, request: &crate::core::request::Request, theme: &Theme, app: &App) {
+fn render_url_bar(
+    area: Rect,
+    buf: &mut Buffer,
+    request: &crate::core::request::Request,
+    theme: &Theme,
+    app: &App,
+) {
     if area.width < 12 {
         return;
     }
@@ -90,7 +94,7 @@ fn render_url_bar(area: Rect, buf: &mut Buffer, request: &crate::core::request::
     let chunks = Layout::horizontal([
         Constraint::Length(method_width),
         Constraint::Length(1), // spacer
-        Constraint::Min(1),   // url
+        Constraint::Min(1),    // url
         Constraint::Length(1), // spacer
         Constraint::Length(send_width),
     ])
@@ -102,8 +106,7 @@ fn render_url_bar(area: Rect, buf: &mut Buffer, request: &crate::core::request::
         format!("{} \u{25BC}", request.method.as_str()),
         method_style,
     );
-    Paragraph::new(Line::from(vec![Span::raw(" "), method_span]))
-        .render(chunks[0], buf);
+    Paragraph::new(Line::from(vec![Span::raw(" "), method_span])).render(chunks[0], buf);
 
     // URL input
     let url_focused = app.focus == FocusArea::UrlBar;
@@ -123,7 +126,10 @@ fn render_url_bar(area: Rect, buf: &mut Buffer, request: &crate::core::request::
 
     // Show a cursor indicator when editing the URL
     let url_line = if url_focused && app.mode == AppMode::Insert {
-        Line::from(vec![url_display, Span::styled("\u{2588}", Style::default().fg(theme.colors.accent))])
+        Line::from(vec![
+            url_display,
+            Span::styled("\u{2588}", Style::default().fg(theme.colors.accent)),
+        ])
     } else {
         Line::from(vec![url_display])
     };
@@ -144,7 +150,13 @@ fn render_url_bar(area: Rect, buf: &mut Buffer, request: &crate::core::request::
 // Sub-tab bar:  Params | Auth | Headers | Body | Assertions
 // ---------------------------------------------------------------------------
 
-fn render_request_sub_tabs(area: Rect, buf: &mut Buffer, active: RequestTabKind, theme: &Theme, app: &App) {
+fn render_request_sub_tabs(
+    area: Rect,
+    buf: &mut Buffer,
+    active: RequestTabKind,
+    theme: &Theme,
+    app: &App,
+) {
     let tabs_focused = app.focus == FocusArea::RequestTabs;
     let mut spans: Vec<Span<'_>> = Vec::new();
 
@@ -187,9 +199,9 @@ fn render_sub_tab_content(
 ) {
     match kind {
         RequestTabKind::Params => render_params_tab(area, buf, &request.params, theme),
-        RequestTabKind::Auth => render_auth_tab(area, buf, &request.auth, theme),
+        RequestTabKind::Auth => render_auth_tab(area, buf, request.auth.as_ref(), theme),
         RequestTabKind::Headers => render_headers_tab(area, buf, &request.headers, theme),
-        RequestTabKind::Body => render_body_tab(area, buf, &request.body, theme, app),
+        RequestTabKind::Body => render_body_tab(area, buf, request.body.as_ref(), theme, app),
         RequestTabKind::Assertions => render_assertions_tab(area, buf, &request.assertions, theme),
     }
 }
@@ -216,15 +228,18 @@ fn render_params_tab(area: Rect, buf: &mut Buffer, params: &[KeyValuePair], them
 // Auth tab: display current auth type and its editable fields
 // ---------------------------------------------------------------------------
 
-fn render_auth_tab(area: Rect, buf: &mut Buffer, auth: &Option<AuthConfig>, theme: &Theme) {
-    let auth = auth.as_ref();
-
+fn render_auth_tab(area: Rect, buf: &mut Buffer, auth: Option<&AuthConfig>, theme: &Theme) {
     let mut lines: Vec<Line<'_>> = Vec::new();
 
-    let auth_name = auth.map(|a| a.display_name()).unwrap_or("No Auth");
+    let auth_name = auth.map_or("No Auth", crate::core::auth::AuthConfig::display_name);
     lines.push(Line::from(vec![
         Span::styled("Type: ", Style::default().fg(theme.colors.muted)),
-        Span::styled(auth_name, Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            auth_name,
+            Style::default()
+                .fg(theme.colors.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
     ]));
     lines.push(Line::default());
 
@@ -236,7 +251,11 @@ fn render_auth_tab(area: Rect, buf: &mut Buffer, auth: &Option<AuthConfig>, them
             lines.push(field_line("Username", username, theme));
             lines.push(field_line("Password", &mask_string(password), theme));
         }
-        Some(AuthConfig::ApiKey { key, value, location }) => {
+        Some(AuthConfig::ApiKey {
+            key,
+            value,
+            location,
+        }) => {
             let loc_str = match location {
                 crate::core::auth::ApiKeyLocation::Header => "Header",
                 crate::core::auth::ApiKeyLocation::QueryParam => "Query Param",
@@ -256,7 +275,11 @@ fn render_auth_tab(area: Rect, buf: &mut Buffer, auth: &Option<AuthConfig>, them
             lines.push(field_line("Grant Type", grant_type.as_str(), theme));
             lines.push(field_line("Token URL", access_token_url, theme));
             lines.push(field_line("Client ID", client_id, theme));
-            lines.push(field_line("Client Secret", &mask_string(client_secret), theme));
+            lines.push(field_line(
+                "Client Secret",
+                &mask_string(client_secret),
+                theme,
+            ));
             if let Some(s) = scope {
                 lines.push(field_line("Scope", s, theme));
             }
@@ -308,7 +331,7 @@ fn render_headers_tab(area: Rect, buf: &mut Buffer, headers: &[KeyValuePair], th
 fn render_body_tab(
     area: Rect,
     buf: &mut Buffer,
-    body: &Option<RequestBody>,
+    body: Option<&RequestBody>,
     theme: &Theme,
     app: &App,
 ) {
@@ -326,7 +349,10 @@ fn render_body_tab(
         Some(RequestBody::Json(content)) => {
             render_body_editor(area, buf, content, "application/json", theme, body_focused);
         }
-        Some(RequestBody::Raw { content, content_type }) => {
+        Some(RequestBody::Raw {
+            content,
+            content_type,
+        }) => {
             render_body_editor(area, buf, content, content_type, theme, body_focused);
         }
         Some(RequestBody::FormData(pairs)) => {
@@ -338,7 +364,12 @@ fn render_body_tab(
         Some(RequestBody::Binary(path)) => {
             let path_str = path.display().to_string();
             let lines = vec![
-                Line::from(Span::styled("Binary File", Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD))),
+                Line::from(Span::styled(
+                    "Binary File",
+                    Style::default()
+                        .fg(theme.colors.accent)
+                        .add_modifier(Modifier::BOLD),
+                )),
                 Line::default(),
                 Line::from(vec![
                     Span::styled("Path: ", theme.muted_style()),
@@ -348,24 +379,42 @@ fn render_body_tab(
             Paragraph::new(lines).render(area, buf);
         }
         Some(RequestBody::GraphQL { query, variables }) => {
-            let split = Layout::vertical([
-                Constraint::Percentage(60),
-                Constraint::Percentage(40),
-            ])
-            .split(area);
+            let split = Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)])
+                .split(area);
 
             render_body_editor(split[0], buf, query, "GraphQL Query", theme, body_focused);
 
             let vars_content = variables.as_deref().unwrap_or("{}");
-            render_body_editor(split[1], buf, vars_content, "Variables (JSON)", theme, false);
+            render_body_editor(
+                split[1],
+                buf,
+                vars_content,
+                "Variables (JSON)",
+                theme,
+                false,
+            );
         }
         Some(RequestBody::Protobuf { message }) => {
-            render_body_editor(area, buf, message, "Protobuf Message (JSON)", theme, body_focused);
+            render_body_editor(
+                area,
+                buf,
+                message,
+                "Protobuf Message (JSON)",
+                theme,
+                body_focused,
+            );
         }
     }
 }
 
-fn render_body_editor(area: Rect, buf: &mut Buffer, content: &str, label: &str, theme: &Theme, focused: bool) {
+fn render_body_editor(
+    area: Rect,
+    buf: &mut Buffer,
+    content: &str,
+    label: &str,
+    theme: &Theme,
+    focused: bool,
+) {
     if area.height < 2 {
         return;
     }
@@ -381,13 +430,16 @@ fn render_body_editor(area: Rect, buf: &mut Buffer, content: &str, label: &str, 
     let label_style = Style::default()
         .fg(theme.colors.accent)
         .add_modifier(Modifier::BOLD);
-    Paragraph::new(Line::from(Span::styled(label, label_style)))
-        .render(header_area, buf);
+    Paragraph::new(Line::from(Span::styled(label, label_style))).render(header_area, buf);
 
     // Line numbers + content
     let lines: Vec<Line<'_>> = if content.is_empty() {
         vec![Line::from(Span::styled(
-            if focused { "Start typing..." } else { "(empty)" },
+            if focused {
+                "Start typing..."
+            } else {
+                "(empty)"
+            },
             theme.muted_style(),
         ))]
     } else {
@@ -426,8 +478,18 @@ fn render_assertions_tab(area: Rect, buf: &mut Buffer, assertions: &[Assertion],
 
     let header = Row::new(vec![
         Cell::from(Span::styled("", Style::default().fg(theme.colors.muted))),
-        Cell::from(Span::styled("#", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
-        Cell::from(Span::styled("Assertion", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
+        Cell::from(Span::styled(
+            "#",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Assertion",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
     ]);
 
     let rows: Vec<Row> = assertions
@@ -461,9 +523,7 @@ fn render_assertions_tab(area: Rect, buf: &mut Buffer, assertions: &[Assertion],
         Constraint::Min(10),
     ];
 
-    let table = Table::new(rows, widths)
-        .header(header)
-        .column_spacing(1);
+    let table = Table::new(rows, widths).header(header).column_spacing(1);
 
     Widget::render(table, area, buf);
 }
@@ -473,12 +533,33 @@ fn render_assertions_tab(area: Rect, buf: &mut Buffer, assertions: &[Assertion],
 // ---------------------------------------------------------------------------
 
 /// Render a key-value table with enable/disable checkboxes.
-fn render_kv_table(area: Rect, buf: &mut Buffer, pairs: &[KeyValuePair], _title: &str, theme: &Theme) {
+fn render_kv_table(
+    area: Rect,
+    buf: &mut Buffer,
+    pairs: &[KeyValuePair],
+    _title: &str,
+    theme: &Theme,
+) {
     let header = Row::new(vec![
         Cell::from(Span::styled("", Style::default())),
-        Cell::from(Span::styled("Key", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
-        Cell::from(Span::styled("Value", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
-        Cell::from(Span::styled("Description", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
+        Cell::from(Span::styled(
+            "Key",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Value",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Description",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
     ]);
 
     let rows: Vec<Row> = pairs
@@ -515,9 +596,7 @@ fn render_kv_table(area: Rect, buf: &mut Buffer, pairs: &[KeyValuePair], _title:
         Constraint::Percentage(25),
     ];
 
-    let table = Table::new(rows, widths)
-        .header(header)
-        .column_spacing(1);
+    let table = Table::new(rows, widths).header(header).column_spacing(1);
 
     Widget::render(table, area, buf);
 }
@@ -526,7 +605,7 @@ fn render_kv_table(area: Rect, buf: &mut Buffer, pairs: &[KeyValuePair], _title:
 fn field_line(label: &str, value: &str, theme: &Theme) -> Line<'static> {
     Line::from(vec![
         Span::styled(
-            format!("  {}: ", label),
+            format!("  {label}: "),
             Style::default().fg(theme.colors.muted),
         ),
         Span::styled(
@@ -557,7 +636,11 @@ fn colorize_json_line<'a>(line: &'a str, theme: &Theme) -> Span<'a> {
         Style::default().fg(theme.colors.syntax.json_key)
     } else if trimmed.starts_with('"') {
         Style::default().fg(theme.colors.syntax.json_string)
-    } else if trimmed == "true" || trimmed == "false" || trimmed.trim_end_matches(',') == "true" || trimmed.trim_end_matches(',') == "false" {
+    } else if trimmed == "true"
+        || trimmed == "false"
+        || trimmed.trim_end_matches(',') == "true"
+        || trimmed.trim_end_matches(',') == "false"
+    {
         Style::default().fg(theme.colors.syntax.json_boolean)
     } else if trimmed == "null" || trimmed.trim_end_matches(',') == "null" {
         Style::default().fg(theme.colors.syntax.json_null)

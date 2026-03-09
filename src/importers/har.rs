@@ -18,6 +18,7 @@ struct HarLog {
 struct HarEntry {
     request: HarRequest,
     #[serde(default)]
+    #[allow(dead_code)]
     response: Option<HarResponse>,
 }
 
@@ -34,6 +35,7 @@ struct HarRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct HarResponse {
     status: u16,
 }
@@ -58,13 +60,10 @@ pub fn import_har(content: &str) -> Result<Collection> {
     let mut collection = Collection::new("HAR Import");
 
     for entry in har.log.entries {
+        #[allow(deprecated)]
         let method = HttpMethod::from_str(&entry.request.method).unwrap_or(HttpMethod::GET);
         let url_parsed = url::Url::parse(&entry.request.url)?;
-        let name = format!(
-            "{} {}",
-            entry.request.method,
-            url_parsed.path()
-        );
+        let name = format!("{} {}", entry.request.method, url_parsed.path());
 
         let base_url = format!(
             "{}://{}{}",

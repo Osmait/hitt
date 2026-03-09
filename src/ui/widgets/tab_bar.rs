@@ -52,9 +52,9 @@ impl Widget for TabBar<'_> {
             // Build label text
             let title = tab.title();
             let label = if tab.dirty {
-                format!(" {} \u{25CF} ", title)
+                format!(" {title} \u{25CF} ")
             } else {
-                format!(" {} ", title)
+                format!(" {title} ")
             };
 
             let style = if is_active {
@@ -108,7 +108,7 @@ impl Widget for TabBar<'_> {
                 // Truncate with ellipsis
                 let trunc = label_width.saturating_sub(2);
                 let truncated: String = seg.label.chars().take(trunc).collect();
-                format!("{}\u{2026} ", truncated)
+                format!("{truncated}\u{2026} ")
             } else {
                 seg.label.clone()
             };

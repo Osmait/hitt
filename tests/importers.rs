@@ -28,10 +28,8 @@ fn curl_post_with_json() {
 
 #[test]
 fn curl_put_method() {
-    let req = parse_curl(
-        r#"curl -X PUT https://api.example.com/users/1 -d '{"name":"Jane"}'"#,
-    )
-    .unwrap();
+    let req =
+        parse_curl(r#"curl -X PUT https://api.example.com/users/1 -d '{"name":"Jane"}'"#).unwrap();
     assert_eq!(req.method, HttpMethod::PUT);
 }
 
@@ -49,10 +47,8 @@ fn curl_multiple_headers() {
 
 #[test]
 fn curl_bearer_auth_via_header() {
-    let req = parse_curl(
-        r#"curl -H "Authorization: Bearer mytoken" https://api.example.com"#,
-    )
-    .unwrap();
+    let req =
+        parse_curl(r#"curl -H "Authorization: Bearer mytoken" https://api.example.com"#).unwrap();
     assert!(req
         .headers
         .iter()
@@ -71,10 +67,9 @@ fn curl_basic_auth() {
 
 #[test]
 fn curl_form_data() {
-    let req = parse_curl(
-        r#"curl -F "name=John" -F "file=@photo.jpg" https://api.example.com/upload"#,
-    )
-    .unwrap();
+    let req =
+        parse_curl(r#"curl -F "name=John" -F "file=@photo.jpg" https://api.example.com/upload"#)
+            .unwrap();
     assert!(matches!(req.body, Some(RequestBody::FormData(_))));
     if let Some(RequestBody::FormData(fields)) = &req.body {
         assert_eq!(fields.len(), 2);
@@ -98,10 +93,7 @@ fn curl_implicit_post_with_data() {
 
 #[test]
 fn curl_line_continuation() {
-    let req = parse_curl(
-        "curl \\\n  -X DELETE \\\n  https://api.example.com/users/1",
-    )
-    .unwrap();
+    let req = parse_curl("curl \\\n  -X DELETE \\\n  https://api.example.com/users/1").unwrap();
     assert_eq!(req.method, HttpMethod::DELETE);
 }
 
@@ -235,7 +227,10 @@ fn openapi_import_tags_become_folders() {
     let spec = include_str!("fixtures/petstore_openapi.yaml");
     let collection = import_openapi(spec).unwrap();
     // All 3 operations have tag "pets"
-    assert!(collection.items.iter().any(|i| i.is_folder() && i.name() == "pets"));
+    assert!(collection
+        .items
+        .iter()
+        .any(|i| i.is_folder() && i.name() == "pets"));
 }
 
 #[test]

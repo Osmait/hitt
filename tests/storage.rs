@@ -23,7 +23,11 @@ fn collections_store_save_and_load_roundtrip() {
     let store = CollectionsStore::new(tmp.path().join("collections")).unwrap();
 
     let mut collection = Collection::new("Test API");
-    collection.add_request(Request::new("Get Users", HttpMethod::GET, "https://api.example.com/users"));
+    collection.add_request(Request::new(
+        "Get Users",
+        HttpMethod::GET,
+        "https://api.example.com/users",
+    ));
 
     let path = store.save_collection(&collection).unwrap();
     assert!(path.exists());
@@ -51,12 +55,8 @@ fn collections_store_multiple_collections() {
     let tmp = TempDir::new().unwrap();
     let store = CollectionsStore::new(tmp.path().join("collections")).unwrap();
 
-    store
-        .save_collection(&Collection::new("API One"))
-        .unwrap();
-    store
-        .save_collection(&Collection::new("API Two"))
-        .unwrap();
+    store.save_collection(&Collection::new("API One")).unwrap();
+    store.save_collection(&Collection::new("API Two")).unwrap();
 
     let all = store.load_all().unwrap();
     assert_eq!(all.len(), 2);
@@ -96,7 +96,7 @@ fn environment_save_and_load_roundtrip() {
 #[test]
 fn app_config_defaults() {
     let config = AppConfig::default();
-    assert_eq!(config.theme, "catppuccin");
+    assert_eq!(config.theme.as_str(), "catppuccin");
     assert_eq!(config.history_limit, 1000);
     assert!(config.follow_redirects);
     assert!(config.verify_ssl);
@@ -110,7 +110,7 @@ fn app_config_defaults() {
 #[test]
 fn app_config_serialization_roundtrip() {
     let config = AppConfig {
-        theme: "dracula".to_string(),
+        theme: "dracula".into(),
         default_environment: Some("prod".to_string()),
         history_limit: 500,
         follow_redirects: false,
@@ -124,7 +124,7 @@ fn app_config_serialization_roundtrip() {
 
     let toml_str = toml::to_string_pretty(&config).unwrap();
     let loaded: AppConfig = toml::from_str(&toml_str).unwrap();
-    assert_eq!(loaded.theme, "dracula");
+    assert_eq!(loaded.theme.as_str(), "dracula");
     assert_eq!(loaded.history_limit, 500);
     assert!(!loaded.follow_redirects);
     assert!(!loaded.verify_ssl);

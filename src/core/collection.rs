@@ -35,7 +35,7 @@ impl Collection {
     }
 
     pub fn add_request(&mut self, request: Request) {
-        self.items.push(CollectionItem::Request(request));
+        self.items.push(CollectionItem::Request(Box::new(request)));
     }
 
     pub fn add_folder(&mut self, name: impl Into<String>) -> &mut Vec<CollectionItem> {
@@ -46,9 +46,10 @@ impl Collection {
             auth: None,
             description: None,
         });
+        // SAFETY: we just pushed an item, so last_mut() is guaranteed to return Some
         match self.items.last_mut().unwrap() {
             CollectionItem::Folder { items, .. } => items,
-            _ => unreachable!(),
+            CollectionItem::Request(_) => unreachable!(),
         }
     }
 
@@ -69,7 +70,7 @@ impl Collection {
                         return Some(found);
                     }
                 }
-                _ => {}
+                CollectionItem::Request(_) => {}
             }
         }
         None
@@ -87,7 +88,7 @@ impl Collection {
                         return Some(found);
                     }
                 }
-                _ => {}
+                CollectionItem::Request(_) => {}
             }
         }
         None
@@ -111,11 +112,42 @@ impl Collection {
     pub fn request_count(&self) -> usize {
         self.all_requests().len()
     }
+
+    /// Stack-based iterator over all requests in the collection.
+    /// Avoids allocating a Vec unlike `all_requests()`.
+    pub fn iter_requests(&self) -> RequestIter<'_> {
+        RequestIter {
+            stack: self.items.iter().rev().collect(),
+        }
+    }
+}
+
+/// Non-allocating iterator over all requests in a collection tree.
+pub struct RequestIter<'a> {
+    stack: Vec<&'a CollectionItem>,
+}
+
+impl<'a> Iterator for RequestIter<'a> {
+    type Item = &'a Request;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(item) = self.stack.pop() {
+            match item {
+                CollectionItem::Request(req) => return Some(req),
+                CollectionItem::Folder { items, .. } => {
+                    // Push children in reverse so they're visited in order
+                    self.stack.extend(items.iter().rev());
+                }
+            }
+        }
+        None
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum CollectionItem {
-    Request(Request),
+    Request(Box<Request>),
     Folder {
         id: Uuid,
         name: String,
@@ -128,15 +160,8 @@ pub enum CollectionItem {
 impl CollectionItem {
     pub fn name(&self) -> &str {
         match self {
-            Self::Request(r) => &r.name,
+            Self::Request(r) => r.name.as_str(),
             Self::Folder { name, .. } => name,
-        }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        match self {
-            Self::Request(r) => &r.id,
-            Self::Folder { id, .. } => id,
         }
     }
 

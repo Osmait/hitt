@@ -1,18 +1,13 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 
 use crate::testing::diff::{DiffResult, DiffTag};
 use crate::ui::theme::Theme;
 
-pub fn render_diff_viewer(
-    diff: &DiffResult,
-    theme: &Theme,
-    area: Rect,
-    buf: &mut Buffer,
-) {
+pub fn render_diff_viewer(diff: &DiffResult, theme: &Theme, area: Rect, buf: &mut Buffer) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_set(theme.border_set())
@@ -20,15 +15,19 @@ pub fn render_diff_viewer(
             " Diff: +{} -{} ~{} ",
             diff.additions, diff.deletions, diff.unchanged
         ))
-        .title_style(Style::default().fg(theme.colors.accent).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(theme.colors.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .border_style(theme.focused_border_style());
 
     let inner = block.inner(area);
     block.render(area, buf);
 
     // Split into two columns for side-by-side
-    let columns = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(inner);
+    let columns =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(inner);
 
     // Left column (old)
     let left_block = Block::default()
@@ -39,7 +38,9 @@ pub fn render_diff_viewer(
     left_block.render(columns[0], buf);
 
     // Right column (new)
-    let right_block = Block::default().title(" New ").title_style(theme.muted_style());
+    let right_block = Block::default()
+        .title(" New ")
+        .title_style(theme.muted_style());
     let right_inner = right_block.inner(columns[1]);
     right_block.render(columns[1], buf);
 
@@ -51,10 +52,7 @@ pub fn render_diff_viewer(
             DiffTag::Equal => {
                 let ln = line.old_line.unwrap_or(0);
                 left_lines.push(Line::from(vec![
-                    Span::styled(
-                        format!("{:4} ", ln),
-                        theme.muted_style(),
-                    ),
+                    Span::styled(format!("{ln:4} "), theme.muted_style()),
                     Span::raw(&line.content),
                 ]));
                 right_lines.push(Line::from(vec![
@@ -68,14 +66,8 @@ pub fn render_diff_viewer(
             DiffTag::Delete => {
                 let ln = line.old_line.unwrap_or(0);
                 left_lines.push(Line::from(vec![
-                    Span::styled(
-                        format!("{:4}-", ln),
-                        Style::default().fg(theme.colors.error),
-                    ),
-                    Span::styled(
-                        &line.content,
-                        Style::default().fg(theme.colors.error),
-                    ),
+                    Span::styled(format!("{ln:4}-"), Style::default().fg(theme.colors.error)),
+                    Span::styled(&line.content, Style::default().fg(theme.colors.error)),
                 ]));
                 right_lines.push(Line::raw(""));
             }
@@ -84,13 +76,10 @@ pub fn render_diff_viewer(
                 let ln = line.new_line.unwrap_or(0);
                 right_lines.push(Line::from(vec![
                     Span::styled(
-                        format!("{:4}+", ln),
+                        format!("{ln:4}+"),
                         Style::default().fg(theme.colors.success),
                     ),
-                    Span::styled(
-                        &line.content,
-                        Style::default().fg(theme.colors.success),
-                    ),
+                    Span::styled(&line.content, Style::default().fg(theme.colors.success)),
                 ]));
             }
         }

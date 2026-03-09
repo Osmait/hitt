@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::core::request::{HttpMethod, KeyValuePair, Request};
@@ -26,7 +25,7 @@ impl CapturedRequest {
             self.method,
             &self.url,
         );
-        req.headers = self.headers.clone();
+        req.headers.clone_from(&self.headers);
         if let Some(body) = &self.body {
             let content_type = self
                 .headers
@@ -34,7 +33,7 @@ impl CapturedRequest {
                 .find(|h| h.key.eq_ignore_ascii_case("content-type"))
                 .map(|h| h.value.as_str());
 
-            if content_type.map(|ct| ct.contains("json")).unwrap_or(false) {
+            if content_type.is_some_and(|ct| ct.contains("json")) {
                 req.body = Some(crate::core::request::RequestBody::Json(body.clone()));
             } else {
                 req.body = Some(crate::core::request::RequestBody::Raw {

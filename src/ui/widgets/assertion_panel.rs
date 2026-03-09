@@ -58,7 +58,7 @@ fn render_results_content(
     // Split into summary header and list body
     let chunks = Layout::vertical([
         Constraint::Length(2), // summary + separator
-        Constraint::Min(1),   // assertion list
+        Constraint::Min(1),    // assertion list
     ])
     .split(area);
 
@@ -96,11 +96,7 @@ fn render_summary(passed: usize, total: usize, theme: &Theme, area: Rect, buf: &
     };
     let empty = bar_width - filled;
 
-    let bar = format!(
-        "[{}{}]",
-        "#".repeat(filled),
-        "-".repeat(empty),
-    );
+    let bar = format!("[{}{}]", "#".repeat(filled), "-".repeat(empty),);
 
     let bar_style = if all_passed {
         Style::default().fg(theme.colors.success)
@@ -111,12 +107,9 @@ fn render_summary(passed: usize, total: usize, theme: &Theme, area: Rect, buf: &
     };
 
     let line = Line::from(vec![
-        Span::styled(format!(" [{}] ", icon), summary_style),
-        Span::styled(
-            format!("{}/{} passed", passed, total),
-            summary_style,
-        ),
-        Span::styled(format!("  {} ", status_text), summary_style),
+        Span::styled(format!(" [{icon}] "), summary_style),
+        Span::styled(format!("{passed}/{total} passed"), summary_style),
+        Span::styled(format!("  {status_text} "), summary_style),
         Span::styled(bar, bar_style),
     ]);
 
@@ -125,12 +118,7 @@ fn render_summary(passed: usize, total: usize, theme: &Theme, area: Rect, buf: &
 }
 
 /// Renders the list of individual assertion results.
-fn render_assertion_list(
-    results: &[AssertionResult],
-    theme: &Theme,
-    area: Rect,
-    buf: &mut Buffer,
-) {
+fn render_assertion_list(results: &[AssertionResult], theme: &Theme, area: Rect, buf: &mut Buffer) {
     let items: Vec<ListItem> = results
         .iter()
         .map(|result| {
@@ -174,14 +162,13 @@ fn render_assertion_list(
 
             // Append the actual value if present
             if let Some(actual) = &result.actual_value {
-                spans.push(Span::styled(
-                    format!("  (actual: {})", actual),
-                    message_style,
-                ));
+                spans.push(Span::styled(format!("  (actual: {actual})"), message_style));
             }
 
             // For failed assertions, show the failure message on a second line
-            if !result.passed {
+            if result.passed {
+                ListItem::new(Line::from(spans))
+            } else {
                 let lines = vec![
                     Line::from(spans),
                     Line::from(vec![
@@ -190,8 +177,6 @@ fn render_assertion_list(
                     ]),
                 ];
                 ListItem::new(lines)
-            } else {
-                ListItem::new(Line::from(spans))
             }
         })
         .collect();

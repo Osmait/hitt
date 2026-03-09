@@ -1,5 +1,4 @@
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::path::Path;
 use uuid::Uuid;
 
@@ -92,9 +91,11 @@ pub fn parse_proto(content: &str) -> Result<Vec<GrpcService>> {
                 name,
                 methods: Vec::new(),
             });
-        } else if trimmed.starts_with("rpc ") && current_service.is_some() {
-            if let Some(method) = parse_rpc_line(trimmed) {
-                current_service.as_mut().unwrap().methods.push(method);
+        } else if trimmed.starts_with("rpc ") {
+            if let (Some(method), Some(ref mut svc)) =
+                (parse_rpc_line(trimmed), &mut current_service)
+            {
+                svc.methods.push(method);
             }
         } else if trimmed == "}" && current_service.is_some() {
             if let Some(service) = current_service.take() {
@@ -150,7 +151,7 @@ fn parse_rpc_line(line: &str) -> Option<GrpcMethod> {
 /// Generate example JSON request body from a message type
 pub fn generate_example_body(message_type: &str) -> String {
     // For now, return a basic template
-    format!("{{\n  \"_type\": \"{}\"\n}}", message_type)
+    format!("{{\n  \"_type\": \"{message_type}\"\n}}")
 }
 
 #[cfg(test)]

@@ -59,13 +59,21 @@ fn render_collections(app: &App, frame: &mut Frame, area: Rect) {
         });
 
         if expanded {
-            flatten_items(&collection.items, 1, &app.sidebar_state.expanded, &mut items);
+            flatten_items(
+                &collection.items,
+                1,
+                &app.sidebar_state.expanded,
+                &mut items,
+            );
         }
     }
 
     // Apply scroll offset.
     let visible_height = area.height as usize;
-    let scroll = app.sidebar_state.scroll_offset.min(items.len().saturating_sub(1));
+    let scroll = app
+        .sidebar_state
+        .scroll_offset
+        .min(items.len().saturating_sub(1));
     let visible_items = &items[scroll..items.len().min(scroll + visible_height)];
 
     let list_items: Vec<ListItem> = visible_items
@@ -114,7 +122,7 @@ fn flatten_items(
                 out.push(SidebarRow {
                     kind: RowKind::Folder,
                     depth,
-                    label: format!("{}{}", chevron, name),
+                    label: format!("{chevron}{name}"),
                     method: None,
                     protocol: None,
                     request_count: None,
@@ -139,7 +147,11 @@ fn render_chains(app: &App, frame: &mut Frame, area: Rect) {
     let chains: Vec<(&str, &str)> = app
         .collections
         .iter()
-        .flat_map(|c| c.chains.iter().map(move |ch| (c.name.as_str(), ch.name.as_str())))
+        .flat_map(|c| {
+            c.chains
+                .iter()
+                .map(move |ch| (c.name.as_str(), ch.name.as_str()))
+        })
         .collect();
 
     if chains.is_empty() {
@@ -150,7 +162,10 @@ fn render_chains(app: &App, frame: &mut Frame, area: Rect) {
         return;
     }
 
-    let scroll = app.sidebar_state.scroll_offset.min(chains.len().saturating_sub(1));
+    let scroll = app
+        .sidebar_state
+        .scroll_offset
+        .min(chains.len().saturating_sub(1));
     let visible_height = area.height as usize;
     let visible = &chains[scroll..chains.len().min(scroll + visible_height)];
 
@@ -167,14 +182,8 @@ fn render_chains(app: &App, frame: &mut Frame, area: Rect) {
                     .fg(theme.colors.warning)
                     .add_modifier(Modifier::BOLD),
             );
-            let name_span = Span::styled(
-                *chain_name,
-                Style::default().fg(theme.colors.foreground),
-            );
-            let coll_span = Span::styled(
-                format!("  ({})", collection_name),
-                theme.muted_style(),
-            );
+            let name_span = Span::styled(*chain_name, Style::default().fg(theme.colors.foreground));
+            let coll_span = Span::styled(format!("  ({collection_name})"), theme.muted_style());
 
             let line = Line::from(vec![chain_icon, name_span, coll_span]);
 
@@ -206,7 +215,10 @@ fn render_history(app: &App, frame: &mut Frame, area: Rect) {
         return;
     }
 
-    let scroll = app.sidebar_state.scroll_offset.min(entries.len().saturating_sub(1));
+    let scroll = app
+        .sidebar_state
+        .scroll_offset
+        .min(entries.len().saturating_sub(1));
     let visible_height = area.height as usize;
     let visible = &entries[scroll..entries.len().min(scroll + visible_height)];
 
@@ -221,23 +233,14 @@ fn render_history(app: &App, frame: &mut Frame, area: Rect) {
             let is_selected = absolute_idx == app.sidebar_state.selected;
 
             let method_style = theme.method_style(&entry.method);
-            let method_span = Span::styled(
-                format!("{:<7}", entry.method.as_str()),
-                method_style,
-            );
+            let method_span = Span::styled(format!("{:<7}", entry.method.as_str()), method_style);
 
             let url_display = entry.short_url(url_max);
-            let url_span = Span::styled(
-                url_display,
-                Style::default().fg(theme.colors.foreground),
-            );
+            let url_span = Span::styled(url_display, Style::default().fg(theme.colors.foreground));
 
             // Show status code if available.
             let status_span = if let Some(status) = entry.status {
-                Span::styled(
-                    format!(" {}", status),
-                    theme.status_style(status),
-                )
+                Span::styled(format!(" {status}"), theme.status_style(status))
             } else {
                 Span::raw("")
             };
@@ -303,10 +306,7 @@ fn row_to_list_item<'a>(row: &SidebarRow, selected: bool, theme: &Theme) -> List
                 ),
             ];
             if let Some(count) = row.request_count {
-                s.push(Span::styled(
-                    format!(" ({})", count),
-                    theme.muted_style(),
-                ));
+                s.push(Span::styled(format!(" ({count})"), theme.muted_style()));
             }
             s
         }
@@ -343,7 +343,7 @@ fn row_to_list_item<'a>(row: &SidebarRow, selected: bool, theme: &Theme) -> List
                 ),
                 _ => {
                     let method = row.method.unwrap_or(HttpMethod::GET);
-                    method_badge(&method, theme)
+                    method_badge(method, theme)
                 }
             };
             vec![
@@ -368,7 +368,7 @@ fn row_to_list_item<'a>(row: &SidebarRow, selected: bool, theme: &Theme) -> List
 }
 
 /// Returns a short, coloured method badge such as `GET` or `POST`.
-fn method_badge<'a>(method: &HttpMethod, theme: &Theme) -> Span<'a> {
+fn method_badge<'a>(method: HttpMethod, theme: &Theme) -> Span<'a> {
     let label = match method {
         HttpMethod::GET => "GET    ",
         HttpMethod::POST => "POST   ",
@@ -379,5 +379,5 @@ fn method_badge<'a>(method: &HttpMethod, theme: &Theme) -> Span<'a> {
         HttpMethod::OPTIONS => "OPT    ",
         HttpMethod::TRACE => "TRACE  ",
     };
-    Span::styled(label, theme.method_style(method))
+    Span::styled(label, theme.method_style(&method))
 }

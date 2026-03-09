@@ -34,10 +34,7 @@ fn collection_roundtrip() {
 
     // Compare
     assert_eq!(imported.name, "Roundtrip Test");
-    assert_eq!(
-        imported.description.as_deref(),
-        Some("Testing roundtrip")
-    );
+    assert_eq!(imported.description.as_deref(), Some("Testing roundtrip"));
     assert_eq!(imported.request_count(), 2);
     assert_eq!(imported.variables.len(), 1);
     assert_eq!(imported.variables[0].key, "base_url");

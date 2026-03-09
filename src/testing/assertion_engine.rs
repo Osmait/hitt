@@ -74,19 +74,19 @@ pub enum AssertionKind {
 impl AssertionKind {
     pub fn description(&self) -> String {
         match self {
-            Self::StatusEquals(s) => format!("status == {}", s),
-            Self::StatusRange(min, max) => format!("status in {}..{}", min, max),
-            Self::BodyPathEquals { path, expected } => format!("{} == {}", path, expected),
-            Self::BodyPathExists(path) => format!("{} exists", path),
-            Self::BodyPathType { path, expected } => format!("{} is {:?}", path, expected),
+            Self::StatusEquals(s) => format!("status == {s}"),
+            Self::StatusRange(min, max) => format!("status in {min}..{max}"),
+            Self::BodyPathEquals { path, expected } => format!("{path} == {expected}"),
+            Self::BodyPathExists(path) => format!("{path} exists"),
+            Self::BodyPathType { path, expected } => format!("{path} is {expected:?}"),
             Self::BodyPathContains { path, substring } => {
-                format!("{} contains \"{}\"", path, substring)
+                format!("{path} contains \"{substring}\"")
             }
-            Self::BodyContains(s) => format!("body contains \"{}\"", s),
-            Self::HeaderEquals { name, expected } => format!("header {} == \"{}\"", name, expected),
-            Self::HeaderExists(name) => format!("header {} exists", name),
+            Self::BodyContains(s) => format!("body contains \"{s}\""),
+            Self::HeaderEquals { name, expected } => format!("header {name} == \"{expected}\""),
+            Self::HeaderExists(name) => format!("header {name} exists"),
             Self::ResponseTimeLessThan(d) => format!("time < {}ms", d.as_millis()),
-            Self::SizeLessThan(s) => format!("size < {} bytes", s),
+            Self::SizeLessThan(s) => format!("size < {s} bytes"),
             Self::MatchesJsonSchema(_) => "matches JSON schema".to_string(),
         }
     }
@@ -102,7 +102,7 @@ pub enum JsonType {
     Null,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AssertionResult {
     pub assertion: Assertion,
     pub passed: bool,
@@ -130,7 +130,7 @@ impl AssertionEngine {
                     passed,
                     actual_value: Some(response.status.to_string()),
                     message: if passed {
-                        format!("Status is {}", expected)
+                        format!("Status is {expected}")
                     } else {
                         format!("Expected status {}, got {}", expected, response.status)
                     },
@@ -162,9 +162,9 @@ impl AssertionEngine {
                     passed,
                     actual_value: None,
                     message: if passed {
-                        format!("Body contains \"{}\"", substring)
+                        format!("Body contains \"{substring}\"")
                     } else {
-                        format!("Body does not contain \"{}\"", substring)
+                        format!("Body does not contain \"{substring}\"")
                     },
                 }
             }
@@ -177,21 +177,26 @@ impl AssertionEngine {
                     passed,
                     actual_value: result.map(|v| v.to_string()),
                     message: if passed {
-                        format!("{} exists", path)
+                        format!("{path} exists")
                     } else {
-                        format!("{} does not exist", path)
+                        format!("{path} does not exist")
                     },
                 }
             }
 
             AssertionKind::BodyPathEquals { path, expected } => {
                 let result = eval_jsonpath(response, path);
-                let passed = result.as_ref().map(|v| v == expected).unwrap_or(false);
-                let actual_str = result.as_ref().map(|v| v.to_string());
+                let passed = result.as_ref().is_some_and(|v| v == expected);
+                let actual_str = result.as_ref().map(std::string::ToString::to_string);
                 let message = if passed {
-                    format!("{} == {}", path, expected)
+                    format!("{path} == {expected}")
                 } else {
-                    format!("{} != {} (expected {})", path, actual_str.as_deref().unwrap_or("null"), expected)
+                    format!(
+                        "{} != {} (expected {})",
+                        path,
+                        actual_str.as_deref().unwrap_or("null"),
+                        expected
+                    )
                 };
                 AssertionResult {
                     assertion: assertion.clone(),
@@ -204,17 +209,14 @@ impl AssertionEngine {
             AssertionKind::BodyPathType { path, expected } => {
                 let result = eval_jsonpath(response, path);
                 let actual_type = result.as_ref().map(json_type_of);
-                let expected_str = format!("{:?}", expected).to_lowercase();
-                let passed = actual_type
-                    .as_ref()
-                    .map(|t| t == &expected_str)
-                    .unwrap_or(false);
+                let expected_str = format!("{expected:?}").to_lowercase();
+                let passed = actual_type.as_ref().is_some_and(|t| t == &expected_str);
                 AssertionResult {
                     assertion: assertion.clone(),
                     passed,
                     actual_value: actual_type.clone(),
                     message: if passed {
-                        format!("{} is {}", path, expected_str)
+                        format!("{path} is {expected_str}")
                     } else {
                         format!(
                             "{} is {} (expected {})",
@@ -231,29 +233,28 @@ impl AssertionEngine {
                 let passed = result
                     .as_ref()
                     .and_then(|v| v.as_str())
-                    .map(|s| s.contains(substring.as_str()))
-                    .unwrap_or(false);
+                    .is_some_and(|s| s.contains(substring.as_str()));
                 AssertionResult {
                     assertion: assertion.clone(),
                     passed,
                     actual_value: result.map(|v| v.to_string()),
                     message: if passed {
-                        format!("{} contains \"{}\"", path, substring)
+                        format!("{path} contains \"{substring}\"")
                     } else {
-                        format!("{} does not contain \"{}\"", path, substring)
+                        format!("{path} does not contain \"{substring}\"")
                     },
                 }
             }
 
             AssertionKind::HeaderEquals { name, expected } => {
                 let actual = response.header_value(name);
-                let passed = actual.map(|v| v == expected.as_str()).unwrap_or(false);
+                let passed = actual.is_some_and(|v| v == expected.as_str());
                 AssertionResult {
                     assertion: assertion.clone(),
                     passed,
-                    actual_value: actual.map(|s| s.to_string()),
+                    actual_value: actual.map(std::string::ToString::to_string),
                     message: if passed {
-                        format!("Header {} == \"{}\"", name, expected)
+                        format!("Header {name} == \"{expected}\"")
                     } else {
                         format!(
                             "Header {} is \"{}\" (expected \"{}\")",
@@ -271,11 +272,11 @@ impl AssertionEngine {
                 AssertionResult {
                     assertion: assertion.clone(),
                     passed,
-                    actual_value: actual.map(|s| s.to_string()),
+                    actual_value: actual.map(std::string::ToString::to_string),
                     message: if passed {
-                        format!("Header {} exists", name)
+                        format!("Header {name} exists")
                     } else {
-                        format!("Header {} does not exist", name)
+                        format!("Header {name} does not exist")
                     },
                 }
             }
@@ -288,7 +289,11 @@ impl AssertionEngine {
                     passed,
                     actual_value: Some(format!("{}ms", actual.as_millis())),
                     message: if passed {
-                        format!("Response time {}ms < {}ms", actual.as_millis(), max_duration.as_millis())
+                        format!(
+                            "Response time {}ms < {}ms",
+                            actual.as_millis(),
+                            max_duration.as_millis()
+                        )
                     } else {
                         format!(
                             "Response time {}ms >= {}ms",
@@ -305,11 +310,11 @@ impl AssertionEngine {
                 AssertionResult {
                     assertion: assertion.clone(),
                     passed,
-                    actual_value: Some(format!("{} bytes", actual)),
+                    actual_value: Some(format!("{actual} bytes")),
                     message: if passed {
-                        format!("Size {} < {}", actual, max_size)
+                        format!("Size {actual} < {max_size}")
                     } else {
-                        format!("Size {} >= {}", actual, max_size)
+                        format!("Size {actual} >= {max_size}")
                     },
                 }
             }
@@ -324,8 +329,10 @@ impl AssertionEngine {
                             passed: result.is_ok(),
                             actual_value: None,
                             message: match result {
-                                Ok(_) => "Response matches JSON schema".to_string(),
-                                Err(errors) => format!("Schema validation failed: {}", errors.join(", ")),
+                                Ok(()) => "Response matches JSON schema".to_string(),
+                                Err(errors) => {
+                                    format!("Schema validation failed: {}", errors.join(", "))
+                                }
                             },
                         }
                     }
@@ -347,8 +354,8 @@ impl AssertionEngine {
 }
 
 fn eval_jsonpath(response: &Response, path: &str) -> Option<serde_json::Value> {
-    let json = response.body_json()?;
     use jsonpath_rust::JsonPath;
+    let json = response.body_json()?;
     let jsonpath: JsonPath = path.parse().ok()?;
     let result = jsonpath.find(&json);
     // find returns a single Value; if it's Null, treat as absent

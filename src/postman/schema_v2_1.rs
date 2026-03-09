@@ -25,6 +25,7 @@ pub struct PostmanInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum PostmanItem {
     Folder {
         name: String,
@@ -198,7 +199,10 @@ pub struct PostmanEnvironment {
     pub id: String,
     pub name: String,
     pub values: Vec<PostmanEnvValue>,
-    #[serde(rename = "_postman_variable_scope", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "_postman_variable_scope",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub scope: Option<String>,
 }
 

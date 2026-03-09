@@ -1,7 +1,9 @@
 use anyhow::Result;
 use uuid::Uuid;
 
-use super::schema_v2_1::*;
+use super::schema_v2_1::{
+    PostmanAuth, PostmanAuthParam, PostmanBody, PostmanCollection, PostmanItem, PostmanRequest,
+};
 use crate::core::auth::{ApiKeyLocation, AuthConfig, OAuth2GrantType};
 use crate::core::collection::{Collection, CollectionItem};
 use crate::core::request::{HttpMethod, KeyValuePair, Request, RequestBody};
@@ -9,7 +11,7 @@ use crate::core::request::{HttpMethod, KeyValuePair, Request, RequestBody};
 pub fn import_postman_collection(content: &str) -> Result<Collection> {
     let postman: PostmanCollection = serde_json::from_str(content)?;
     let mut collection = Collection::new(&postman.info.name);
-    collection.description = postman.info.description.clone();
+    collection.description.clone_from(&postman.info.description);
 
     // Collection variables
     if let Some(vars) = &postman.variable {
@@ -17,7 +19,7 @@ pub fn import_postman_collection(content: &str) -> Result<Collection> {
             .iter()
             .map(|v| {
                 let mut kv = KeyValuePair::new(&v.key, &v.value);
-                kv.description = v.description.clone();
+                kv.description.clone_from(&v.description);
                 kv
             })
             .collect();
@@ -27,24 +29,16 @@ pub fn import_postman_collection(content: &str) -> Result<Collection> {
     collection.auth = postman.auth.as_ref().map(convert_auth);
 
     // Items
-    collection.items = postman
-        .item
-        .iter()
-        .map(convert_item)
-        .collect();
+    collection.items = postman.item.iter().map(convert_item).collect();
 
     Ok(collection)
 }
 
 fn convert_item(item: &PostmanItem) -> CollectionItem {
     match item {
-        PostmanItem::Request {
-            name,
-            request,
-            ..
-        } => {
+        PostmanItem::Request { name, request, .. } => {
             let req = convert_request(name, request);
-            CollectionItem::Request(req)
+            CollectionItem::Request(Box::new(req))
         }
         PostmanItem::Folder {
             name,
@@ -62,6 +56,7 @@ fn convert_item(item: &PostmanItem) -> CollectionItem {
 }
 
 fn convert_request(name: &str, postman_req: &PostmanRequest) -> Request {
+    #[allow(deprecated)]
     let method = postman_req
         .method
         .as_deref()
@@ -78,7 +73,7 @@ fn convert_request(name: &str, postman_req: &PostmanRequest) -> Request {
             .map(|h| {
                 let mut kv = KeyValuePair::new(&h.key, &h.value);
                 kv.enabled = !h.disabled.unwrap_or(false);
-                kv.description = h.description.clone();
+                kv.description.clone_from(&h.description);
                 kv
             })
             .collect();
@@ -91,7 +86,7 @@ fn convert_request(name: &str, postman_req: &PostmanRequest) -> Request {
         .map(|p| {
             let mut kv = KeyValuePair::new(&p.key, &p.value);
             kv.enabled = !p.disabled.unwrap_or(false);
-            kv.description = p.description.clone();
+            kv.description.clone_from(&p.description);
             kv
         })
         .collect();
@@ -107,7 +102,7 @@ fn convert_request(name: &str, postman_req: &PostmanRequest) -> Request {
     }
 
     // Description
-    request.description = postman_req.description.clone();
+    request.description.clone_from(&postman_req.description);
 
     request
 }
@@ -120,10 +115,12 @@ fn convert_body(body: &PostmanBody) -> RequestBody {
                 .options
                 .as_ref()
                 .and_then(|o| o.raw.as_ref())
-                .map(|r| r.language == "json")
-                .unwrap_or(false);
+                .is_some_and(|r| r.language == "json");
 
-            if is_json || content.trim_start().starts_with('{') || content.trim_start().starts_with('[') {
+            if is_json
+                || content.trim_start().starts_with('{')
+                || content.trim_start().starts_with('[')
+            {
                 RequestBody::Json(content)
             } else {
                 RequestBody::Raw {
@@ -142,7 +139,7 @@ fn convert_body(body: &PostmanBody) -> RequestBody {
                         .map(|p| {
                             let mut kv = KeyValuePair::new(&p.key, &p.value);
                             kv.enabled = !p.disabled.unwrap_or(false);
-                            kv.description = p.description.clone();
+                            kv.description.clone_from(&p.description);
                             kv
                         })
                         .collect()
@@ -160,7 +157,7 @@ fn convert_body(body: &PostmanBody) -> RequestBody {
                         .map(|p| {
                             let mut kv = KeyValuePair::new(&p.key, &p.value);
                             kv.enabled = !p.disabled.unwrap_or(false);
-                            kv.description = p.description.clone();
+                            kv.description.clone_from(&p.description);
                             kv
                         })
                         .collect()
@@ -193,20 +190,20 @@ fn convert_auth(auth: &PostmanAuth) -> AuthConfig {
                         .iter()
                         .find(|p| p.key == "token")
                         .and_then(|p| p.value.as_str())
-                        .map(|s| s.to_string())
+                        .map(std::string::ToString::to_string)
                 })
                 .unwrap_or_default();
             AuthConfig::Bearer { token }
         }
         "basic" => {
-            let username = get_auth_param(&auth.basic, "username");
-            let password = get_auth_param(&auth.basic, "password");
+            let username = get_auth_param(auth.basic.as_ref(), "username");
+            let password = get_auth_param(auth.basic.as_ref(), "password");
             AuthConfig::Basic { username, password }
         }
         "apikey" => {
-            let key = get_auth_param(&auth.apikey, "key");
-            let value = get_auth_param(&auth.apikey, "value");
-            let in_value = get_auth_param(&auth.apikey, "in");
+            let key = get_auth_param(auth.apikey.as_ref(), "key");
+            let value = get_auth_param(auth.apikey.as_ref(), "value");
+            let in_value = get_auth_param(auth.apikey.as_ref(), "in");
             let location = if in_value == "query" {
                 ApiKeyLocation::QueryParam
             } else {
@@ -219,16 +216,24 @@ fn convert_auth(auth: &PostmanAuth) -> AuthConfig {
             }
         }
         "oauth2" => {
-            let access_token_url = get_auth_param(&auth.oauth2, "accessTokenUrl");
-            let client_id = get_auth_param(&auth.oauth2, "clientId");
-            let client_secret = get_auth_param(&auth.oauth2, "clientSecret");
+            let access_token_url = get_auth_param(auth.oauth2.as_ref(), "accessTokenUrl");
+            let client_id = get_auth_param(auth.oauth2.as_ref(), "clientId");
+            let client_secret = get_auth_param(auth.oauth2.as_ref(), "clientSecret");
             let scope = {
-                let s = get_auth_param(&auth.oauth2, "scope");
-                if s.is_empty() { None } else { Some(s) }
+                let s = get_auth_param(auth.oauth2.as_ref(), "scope");
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
             };
             let token = {
-                let t = get_auth_param(&auth.oauth2, "accessToken");
-                if t.is_empty() { None } else { Some(t) }
+                let t = get_auth_param(auth.oauth2.as_ref(), "accessToken");
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
             };
             AuthConfig::OAuth2 {
                 grant_type: OAuth2GrantType::ClientCredentials,
@@ -239,19 +244,17 @@ fn convert_auth(auth: &PostmanAuth) -> AuthConfig {
                 token,
             }
         }
-        "noauth" => AuthConfig::None,
         _ => AuthConfig::None,
     }
 }
 
-fn get_auth_param(params: &Option<Vec<PostmanAuthParam>>, key: &str) -> String {
+fn get_auth_param(params: Option<&Vec<PostmanAuthParam>>, key: &str) -> String {
     params
-        .as_ref()
         .and_then(|p| {
             p.iter()
                 .find(|param| param.key == key)
                 .and_then(|param| param.value.as_str())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
         })
         .unwrap_or_default()
 }

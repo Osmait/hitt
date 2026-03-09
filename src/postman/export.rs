@@ -1,7 +1,11 @@
 use anyhow::Result;
 use uuid::Uuid;
 
-use super::schema_v2_1::*;
+use super::schema_v2_1::{
+    PostmanAuth, PostmanAuthParam, PostmanBody, PostmanBodyOptions, PostmanCollection,
+    PostmanFormParam, PostmanGraphQL, PostmanHeader, PostmanInfo, PostmanItem, PostmanQueryParam,
+    PostmanRawOptions, PostmanRequest, PostmanUrl, PostmanVariable, SCHEMA_V2_1,
+};
 use crate::core::auth::AuthConfig;
 use crate::core::collection::{Collection, CollectionItem};
 use crate::core::request::{Request, RequestBody};
@@ -71,7 +75,7 @@ fn convert_request(req: &Request) -> PostmanRequest {
             key: p.key.clone(),
             value: p.value.clone(),
             description: p.description.clone(),
-            disabled: if !p.enabled { Some(true) } else { None },
+            disabled: if p.enabled { None } else { Some(true) },
         })
         .collect();
 
@@ -101,7 +105,7 @@ fn convert_request(req: &Request) -> PostmanRequest {
                         value: h.value.clone(),
                         header_type: Some("text".to_string()),
                         description: h.description.clone(),
-                        disabled: if !h.enabled { Some(true) } else { None },
+                        disabled: if h.enabled { None } else { Some(true) },
                     })
                     .collect(),
             )
@@ -136,7 +140,7 @@ fn convert_body(body: &RequestBody) -> PostmanBody {
                         key: p.key.clone(),
                         value: p.value.clone(),
                         description: p.description.clone(),
-                        disabled: if !p.enabled { Some(true) } else { None },
+                        disabled: if p.enabled { None } else { Some(true) },
                         param_type: None,
                     })
                     .collect(),
@@ -156,7 +160,7 @@ fn convert_body(body: &RequestBody) -> PostmanBody {
                         key: p.key.clone(),
                         value: p.value.clone(),
                         description: p.description.clone(),
-                        disabled: if !p.enabled { Some(true) } else { None },
+                        disabled: if p.enabled { None } else { Some(true) },
                         param_type: Some("text".to_string()),
                     })
                     .collect(),

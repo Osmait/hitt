@@ -116,9 +116,9 @@ struct RequestResult {
 pub async fn run_load_test(
     config: &LoadTestConfig,
     request: &Request,
-    resolver: &VariableResolver,
+    _resolver: &VariableResolver,
 ) -> Result<LoadTestResult> {
-    let client = HttpClient::new()?;
+    let _client = HttpClient::new()?;
     let results = Arc::new(Mutex::new(Vec::new()));
     let start = Instant::now();
 
@@ -135,11 +135,9 @@ pub async fn run_load_test(
 
         handles.push(tokio::spawn(async move {
             let req_start = Instant::now();
-            let result = tokio::time::timeout(
-                timeout,
-                client_clone.send(&request_clone, &resolver_clone),
-            )
-            .await;
+            let result =
+                tokio::time::timeout(timeout, client_clone.send(&request_clone, &resolver_clone))
+                    .await;
 
             let duration = req_start.elapsed();
             let req_result = match result {

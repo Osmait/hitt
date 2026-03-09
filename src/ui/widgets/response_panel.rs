@@ -3,9 +3,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, BorderType, Borders, Cell, Paragraph, Row, Table, Widget, Wrap,
-    },
+    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, Widget, Wrap},
 };
 use std::time::Duration;
 
@@ -38,8 +36,8 @@ impl Widget for ResponsePanel<'_> {
         let theme = &self.app.theme;
         let tab = self.app.active_tab();
 
-        let focused = self.app.focus == FocusArea::ResponseBody
-            || self.app.focus == FocusArea::ResponseTabs;
+        let focused =
+            self.app.focus == FocusArea::ResponseBody || self.app.focus == FocusArea::ResponseTabs;
 
         let border_style = if focused {
             theme.focused_border_style()
@@ -67,7 +65,7 @@ impl Widget for ResponsePanel<'_> {
                 let chunks = Layout::vertical([
                     Constraint::Length(1), // status line
                     Constraint::Length(1), // sub-tab bar
-                    Constraint::Min(1),   // sub-tab content
+                    Constraint::Min(1),    // sub-tab content
                 ])
                 .split(inner);
 
@@ -96,19 +94,19 @@ fn render_placeholder(area: Rect, buf: &mut Buffer, theme: &Theme, loading: bool
         Line::default(),
         Line::default(),
         Line::from(Span::styled(
-            format!("{}{}", icon, message),
+            format!("{icon}{message}"),
             Style::default()
                 .fg(theme.colors.muted)
                 .add_modifier(Modifier::ITALIC),
         )),
         Line::default(),
-        if !loading {
+        if loading {
+            Line::default()
+        } else {
             Line::from(Span::styled(
                 "Press Ctrl+Enter or click Send",
                 theme.muted_style(),
             ))
-        } else {
-            Line::default()
         },
     ];
 
@@ -128,10 +126,7 @@ fn render_status_line(area: Rect, buf: &mut Buffer, response: &Response, theme: 
     let time_str = format!(" {} ", response.timing.format_total());
     let size_str = format!(" {} ", response.size.format());
 
-    let content_type = response
-        .content_type()
-        .unwrap_or("unknown")
-        .to_string();
+    let content_type = response.content_type().unwrap_or("unknown").to_string();
 
     let sep = Span::styled(" \u{2502} ", theme.muted_style());
 
@@ -204,7 +199,7 @@ fn render_sub_tab_content(
         ResponseTabKind::Cookies => render_cookies_tab(area, buf, &response.cookies, theme),
         ResponseTabKind::Timing => render_timing_tab(area, buf, &response.timing, theme),
         ResponseTabKind::Assertions => {
-            render_assertions_tab(area, buf, &response.assertion_results, theme)
+            render_assertions_tab(area, buf, &response.assertion_results, theme);
         }
         // WS/SSE tabs are rendered by their own functions in layout.rs
         _ => {}
@@ -239,10 +234,7 @@ fn render_body_tab(area: Rect, buf: &mut Buffer, response: &Response, theme: &Th
                     Style::default().fg(theme.colors.foreground),
                 )),
                 Line::default(),
-                Line::from(Span::styled(
-                    hex_preview(data, 16),
-                    theme.muted_style(),
-                )),
+                Line::from(Span::styled(hex_preview(data, 16), theme.muted_style())),
             ];
             Paragraph::new(lines)
                 .wrap(Wrap { trim: false })
@@ -303,12 +295,7 @@ fn render_highlighted_body(
     // Line numbers
     let gutter_lines: Vec<Line<'_>> = (1..=total_lines)
         .take(visible_lines)
-        .map(|n| {
-            Line::from(Span::styled(
-                format!("{:>4} ", n),
-                theme.muted_style(),
-            ))
-        })
+        .map(|n| Line::from(Span::styled(format!("{n:>4} "), theme.muted_style())))
         .collect();
     Paragraph::new(gutter_lines).render(gutter_area, buf);
 
@@ -456,11 +443,8 @@ fn highlight_markup_line<'a>(line: &'a str, theme: &Theme) -> Line<'a> {
         if bytes[pos] == b'<' {
             // find matching >
             if let Some(end) = line[pos..].find('>') {
-                let tag = &line[pos..pos + end + 1];
-                spans.push(Span::styled(
-                    tag,
-                    Style::default().fg(theme.colors.accent),
-                ));
+                let tag = &line[pos..=(pos + end)];
+                spans.push(Span::styled(tag, Style::default().fg(theme.colors.accent)));
                 pos += end + 1;
             } else {
                 spans.push(Span::styled(
@@ -536,9 +520,7 @@ fn render_headers_tab(area: Rect, buf: &mut Buffer, headers: &[KeyValuePair], th
         )),
     ]);
 
-    let table = Table::new(rows, widths)
-        .header(header)
-        .column_spacing(2);
+    let table = Table::new(rows, widths).header(header).column_spacing(2);
 
     Widget::render(table, area, buf);
 }
@@ -559,11 +541,36 @@ fn render_cookies_tab(area: Rect, buf: &mut Buffer, cookies: &[Cookie], theme: &
     }
 
     let header = Row::new(vec![
-        Cell::from(Span::styled("Name", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
-        Cell::from(Span::styled("Value", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
-        Cell::from(Span::styled("Domain", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
-        Cell::from(Span::styled("Path", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
-        Cell::from(Span::styled("Flags", Style::default().fg(theme.colors.muted).add_modifier(Modifier::BOLD))),
+        Cell::from(Span::styled(
+            "Name",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Value",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Domain",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Path",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Flags",
+            Style::default()
+                .fg(theme.colors.muted)
+                .add_modifier(Modifier::BOLD),
+        )),
     ]);
 
     let rows: Vec<Row> = cookies
@@ -579,8 +586,14 @@ fn render_cookies_tab(area: Rect, buf: &mut Buffer, cookies: &[Cookie], theme: &
             let flags_str = flags.join(", ");
 
             Row::new(vec![
-                Cell::from(Span::styled(&c.name, Style::default().fg(theme.colors.accent))),
-                Cell::from(Span::styled(&c.value, Style::default().fg(theme.colors.foreground))),
+                Cell::from(Span::styled(
+                    &c.name,
+                    Style::default().fg(theme.colors.accent),
+                )),
+                Cell::from(Span::styled(
+                    &c.value,
+                    Style::default().fg(theme.colors.foreground),
+                )),
                 Cell::from(Span::styled(
                     c.domain.as_deref().unwrap_or("-"),
                     theme.muted_style(),
@@ -602,9 +615,7 @@ fn render_cookies_tab(area: Rect, buf: &mut Buffer, cookies: &[Cookie], theme: &
         Constraint::Percentage(20),
     ];
 
-    let table = Table::new(rows, widths)
-        .header(header)
-        .column_spacing(1);
+    let table = Table::new(rows, widths).header(header).column_spacing(1);
 
     Widget::render(table, area, buf);
 }
@@ -665,14 +676,14 @@ fn render_timing_tab(area: Rect, buf: &mut Buffer, timing: &RequestTiming, theme
         } else {
             0
         };
-        let bar = "\u{2588}".repeat(bar_len.max(if ms > 0 { 1 } else { 0 }));
+        let bar = "\u{2588}".repeat(bar_len.max(usize::from(ms > 0)));
 
         let label_span = Span::styled(
-            format!("{:<20}", label),
+            format!("{label:<20}"),
             Style::default().fg(theme.colors.muted),
         );
         let time_span = Span::styled(
-            format!("{:>6}ms ", ms),
+            format!("{ms:>6}ms "),
             Style::default().fg(theme.colors.foreground),
         );
         let bar_span = Span::styled(bar, *style);
@@ -727,7 +738,7 @@ fn render_assertions_tab(area: Rect, buf: &mut Buffer, results: &[AssertionResul
 
     let mut lines: Vec<Line<'_>> = Vec::new();
     lines.push(Line::from(Span::styled(
-        format!(" {}/{} assertions passed", passed, total),
+        format!(" {passed}/{total} assertions passed"),
         summary_style,
     )));
     lines.push(Line::default());
@@ -747,7 +758,7 @@ fn render_assertions_tab(area: Rect, buf: &mut Buffer, results: &[AssertionResul
         };
 
         lines.push(Line::from(vec![
-            Span::styled(format!("  {} ", icon), icon_style),
+            Span::styled(format!("  {icon} "), icon_style),
             Span::styled(desc, msg_style),
         ]));
 
@@ -759,7 +770,7 @@ fn render_assertions_tab(area: Rect, buf: &mut Buffer, results: &[AssertionResul
             )));
             if let Some(actual) = &result.actual_value {
                 lines.push(Line::from(Span::styled(
-                    format!("      actual: {}", actual),
+                    format!("      actual: {actual}"),
                     theme.muted_style(),
                 )));
             }
@@ -778,10 +789,16 @@ fn render_assertions_tab(area: Rect, buf: &mut Buffer, results: &[AssertionResul
 /// Generate a short hex preview of binary data (like a hex dump first line).
 fn hex_preview(data: &[u8], max_bytes: usize) -> String {
     let take = data.len().min(max_bytes);
-    let hex: Vec<String> = data[..take].iter().map(|b| format!("{:02X}", b)).collect();
+    let hex: Vec<String> = data[..take].iter().map(|b| format!("{b:02X}")).collect();
     let ascii: String = data[..take]
         .iter()
-        .map(|&b| if (0x20..=0x7E).contains(&b) { b as char } else { '.' })
+        .map(|&b| {
+            if (0x20..=0x7E).contains(&b) {
+                b as char
+            } else {
+                '.'
+            }
+        })
         .collect();
     format!("{} | {}", hex.join(" "), ascii)
 }

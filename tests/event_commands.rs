@@ -1,12 +1,15 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tempfile::TempDir;
 
-use hitt::app::{App, AppMode, FocusArea, ModalKind, NavMode, NotificationKind, RequestTabKind, ResponseTabKind, SidebarSection};
+use hitt::app::{
+    App, AppMode, FocusArea, ModalKind, NavMode, NotificationKind, RequestTabKind, ResponseTabKind,
+    SidebarSection,
+};
 use hitt::core::chain::RequestChain;
 use hitt::core::collection::Collection;
 use hitt::core::environment::Environment;
 use hitt::core::request::{HttpMethod, Request};
-use hitt::event::{handle_event, execute_command, build_sidebar_items, AppEvent, SidebarItem};
+use hitt::event::{build_sidebar_items, execute_command, handle_event, AppEvent, SidebarItem};
 use hitt::storage::config::AppConfig;
 
 /// Create an App with a temp dir for collections so tests don't write to real config.
@@ -256,7 +259,9 @@ async fn insert_mode_backspace() {
     app.focus = FocusArea::UrlBar;
     app.active_tab_mut().request.url = "abc".to_string();
 
-    handle_event(&mut app, key(KeyCode::Backspace)).await.unwrap();
+    handle_event(&mut app, key(KeyCode::Backspace))
+        .await
+        .unwrap();
     assert_eq!(app.active_tab().request.url, "ab");
 }
 
@@ -299,7 +304,9 @@ async fn command_mode_backspace_exits_when_empty() {
     app.mode = AppMode::Command;
     app.command_input = "x".to_string();
 
-    handle_event(&mut app, key(KeyCode::Backspace)).await.unwrap();
+    handle_event(&mut app, key(KeyCode::Backspace))
+        .await
+        .unwrap();
     assert!(app.command_input.is_empty());
     assert_eq!(app.mode, AppMode::Normal);
 }
@@ -315,7 +322,10 @@ async fn cmd_newcol_creates_collection() {
     assert_eq!(app.collections.len(), 1);
     assert_eq!(app.collections[0].name, "My API");
     assert!(app.notification.is_some());
-    assert_eq!(app.notification.as_ref().unwrap().kind, NotificationKind::Success);
+    assert_eq!(
+        app.notification.as_ref().unwrap().kind,
+        NotificationKind::Success
+    );
 }
 
 #[tokio::test]
@@ -660,21 +670,15 @@ async fn page_scroll_shift_j_k() {
     app.response_scroll = 0;
 
     // Shift+J = half page down
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('J'), KeyModifiers::SHIFT),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('J'), KeyModifiers::SHIFT))
+        .await
+        .unwrap();
     assert_eq!(app.response_scroll, 15);
 
     // Shift+K = half page up
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('K'), KeyModifiers::SHIFT),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('K'), KeyModifiers::SHIFT))
+        .await
+        .unwrap();
     assert_eq!(app.response_scroll, 0);
 }
 
@@ -715,7 +719,9 @@ async fn tick_event_clears_notification() {
     app.notification = Some(hitt::app::Notification {
         message: "Old".into(),
         kind: NotificationKind::Info,
-        created_at: std::time::Instant::now() - std::time::Duration::from_secs(10),
+        created_at: std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(10))
+            .unwrap(),
     });
 
     handle_event(&mut app, AppEvent::Tick).await.unwrap();
@@ -777,7 +783,7 @@ async fn cmd_import_postman_file() {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/sample_postman_collection.json"
     );
-    execute_command(&mut app, &format!("import {}", fixture))
+    execute_command(&mut app, &format!("import {fixture}"))
         .await
         .unwrap();
     assert_eq!(app.collections.len(), 1);
@@ -792,7 +798,7 @@ async fn cmd_import_postman_file() {
 async fn cmd_import_har_file() {
     let (mut app, _tmp) = test_app();
     let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/sample.har");
-    execute_command(&mut app, &format!("import {}", fixture))
+    execute_command(&mut app, &format!("import {fixture}"))
         .await
         .unwrap();
     assert_eq!(app.collections.len(), 1);
@@ -806,7 +812,7 @@ async fn cmd_import_openapi_file() {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/petstore_openapi.yaml"
     );
-    execute_command(&mut app, &format!("import {}", fixture))
+    execute_command(&mut app, &format!("import {fixture}"))
         .await
         .unwrap();
     assert_eq!(app.collections.len(), 1);
@@ -831,18 +837,15 @@ async fn cmd_import_nonexistent_file() {
 
 #[tokio::test]
 async fn cmd_export_postman_json() {
-    let (mut app, _tmp) = test_app();
+    let (mut app, tmp) = test_app();
     let mut coll = Collection::new("Export Test");
     coll.add_request(Request::new("R1", HttpMethod::GET, "https://example.com"));
     app.collections.push(coll);
 
-    let export_path = _tmp.path().join("exported.json");
-    execute_command(
-        &mut app,
-        &format!("export {}", export_path.display()),
-    )
-    .await
-    .unwrap();
+    let export_path = tmp.path().join("exported.json");
+    execute_command(&mut app, &format!("export {}", export_path.display()))
+        .await
+        .unwrap();
     assert!(export_path.exists());
 
     // Verify it's valid Postman JSON
@@ -853,18 +856,15 @@ async fn cmd_export_postman_json() {
 
 #[tokio::test]
 async fn cmd_export_markdown() {
-    let (mut app, _tmp) = test_app();
+    let (mut app, tmp) = test_app();
     let mut coll = Collection::new("Docs Test");
     coll.add_request(Request::new("Get Users", HttpMethod::GET, "/users"));
     app.collections.push(coll);
 
-    let export_path = _tmp.path().join("api.md");
-    execute_command(
-        &mut app,
-        &format!("export {}", export_path.display()),
-    )
-    .await
-    .unwrap();
+    let export_path = tmp.path().join("api.md");
+    execute_command(&mut app, &format!("export {}", export_path.display()))
+        .await
+        .unwrap();
     assert!(export_path.exists());
 
     let content = std::fs::read_to_string(&export_path).unwrap();
@@ -874,20 +874,16 @@ async fn cmd_export_markdown() {
 
 #[tokio::test]
 async fn cmd_export_curl() {
-    let (mut app, _tmp) = test_app();
+    let (mut app, tmp) = test_app();
     app.active_tab_mut().request =
-        Request::new("Test", HttpMethod::POST, "https://api.example.com")
-            .with_body(hitt::core::request::RequestBody::Json(
-                r#"{"key":"val"}"#.into(),
-            ));
+        Request::new("Test", HttpMethod::POST, "https://api.example.com").with_body(
+            hitt::core::request::RequestBody::Json(r#"{"key":"val"}"#.into()),
+        );
 
-    let export_path = _tmp.path().join("request.sh");
-    execute_command(
-        &mut app,
-        &format!("export {}", export_path.display()),
-    )
-    .await
-    .unwrap();
+    let export_path = tmp.path().join("request.sh");
+    execute_command(&mut app, &format!("export {}", export_path.display()))
+        .await
+        .unwrap();
     assert!(export_path.exists());
 
     let content = std::fs::read_to_string(&export_path).unwrap();
@@ -962,7 +958,7 @@ async fn esc_closes_any_modal() {
     for modal in modals {
         app.mode = modal.clone();
         handle_event(&mut app, key(KeyCode::Esc)).await.unwrap();
-        assert_eq!(app.mode, AppMode::Normal, "Esc should close {:?}", modal);
+        assert_eq!(app.mode, AppMode::Normal, "Esc should close {modal:?}");
     }
 }
 
@@ -1009,12 +1005,9 @@ async fn ctrl_r_sends_request() {
     let (mut app, _tmp) = test_app();
     // With no URL, send_request will set loading then unset it
     assert!(!app.loading);
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('r'), KeyModifiers::CONTROL),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('r'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
     // After completion, loading should be false, but either a response or error notification exists
     assert!(!app.loading);
 }
@@ -1031,12 +1024,9 @@ async fn ctrl_s_saves() {
     app.active_tab_mut().request.id = req_id;
     app.active_tab_mut().dirty = true;
 
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('s'), KeyModifiers::CONTROL),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('s'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
     assert_eq!(
         app.notification.as_ref().unwrap().kind,
         NotificationKind::Success
@@ -1047,12 +1037,9 @@ async fn ctrl_s_saves() {
 #[tokio::test]
 async fn ctrl_p_opens_search() {
     let (mut app, _tmp) = test_app();
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('p'), KeyModifiers::CONTROL),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('p'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
     assert_eq!(app.mode, AppMode::Modal(ModalKind::Search));
 }
 
@@ -1062,20 +1049,14 @@ async fn ctrl_e_cycles_environment() {
     app.environments.push(Environment::new("Dev"));
     app.environments.push(Environment::new("Prod"));
 
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('e'), KeyModifiers::CONTROL),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('e'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
     assert_eq!(app.active_env, Some(0));
 
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('e'), KeyModifiers::CONTROL),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('e'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
     assert_eq!(app.active_env, Some(1));
 }
 
@@ -1083,12 +1064,9 @@ async fn ctrl_e_cycles_environment() {
 async fn ctrl_n_new_tab() {
     let (mut app, _tmp) = test_app();
     assert_eq!(app.tabs.len(), 1);
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('n'), KeyModifiers::CONTROL),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('n'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
     assert_eq!(app.tabs.len(), 2);
     assert_eq!(app.active_tab, 1);
 }
@@ -1096,24 +1074,18 @@ async fn ctrl_n_new_tab() {
 #[tokio::test]
 async fn ctrl_i_opens_import() {
     let (mut app, _tmp) = test_app();
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('i'), KeyModifiers::CONTROL),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('i'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
     assert_eq!(app.mode, AppMode::Modal(ModalKind::Import));
 }
 
 #[tokio::test]
 async fn ctrl_x_opens_export() {
     let (mut app, _tmp) = test_app();
-    handle_event(
-        &mut app,
-        key_mod(KeyCode::Char('x'), KeyModifiers::CONTROL),
-    )
-    .await
-    .unwrap();
+    handle_event(&mut app, key_mod(KeyCode::Char('x'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
     assert_eq!(app.mode, AppMode::Modal(ModalKind::Export));
 }
 
@@ -1384,7 +1356,9 @@ async fn cmd_delcol_by_name() {
 async fn cmd_delcol_not_found() {
     let (mut app, _tmp) = test_app();
     app.collections.push(Collection::new("API"));
-    execute_command(&mut app, "delcol NonExistent").await.unwrap();
+    execute_command(&mut app, "delcol NonExistent")
+        .await
+        .unwrap();
     assert_eq!(app.collections.len(), 1);
     assert_eq!(
         app.notification.as_ref().unwrap().kind,
@@ -1509,9 +1483,11 @@ async fn cmd_rename_no_args() {
 // WebSocket / SSE commands and modes
 // ════════════════════════════════════════════════════════════════════════════
 
-use hitt::event::{WsEventData, SseEventData, handle_ws_protocol_event, handle_sse_protocol_event};
-use hitt::protocols::websocket::{WebSocketSession, WsStatus, MessageDirection, WsContent, WsMessage};
-use hitt::protocols::sse::{SseSession, SseEvent as ProtocolSseEvent};
+use hitt::event::{handle_sse_protocol_event, handle_ws_protocol_event, SseEventData, WsEventData};
+use hitt::protocols::sse::{SseEvent as ProtocolSseEvent, SseSession};
+use hitt::protocols::websocket::{
+    MessageDirection, WebSocketSession, WsContent, WsMessage, WsStatus,
+};
 
 #[tokio::test]
 async fn cmd_ws_no_args_warns() {
@@ -1550,7 +1526,9 @@ async fn ws_message_input_typing() {
     assert_eq!(app.tabs[app.active_tab].ws_message_input, "hi");
 
     // Backspace
-    handle_event(&mut app, key(KeyCode::Backspace)).await.unwrap();
+    handle_event(&mut app, key(KeyCode::Backspace))
+        .await
+        .unwrap();
     assert_eq!(app.tabs[app.active_tab].ws_message_input, "h");
 }
 
@@ -1583,7 +1561,7 @@ fn handle_ws_protocol_event_connected() {
 
     match &app.tabs[app.active_tab].ws_session.as_ref().unwrap().status {
         WsStatus::Connected { .. } => {} // ok
-        other => panic!("Expected Connected, got {:?}", other),
+        other => panic!("Expected Connected, got {other:?}"),
     }
 }
 
@@ -1642,7 +1620,10 @@ async fn method_cycle_includes_ws_sse() {
     for _ in 0..http_methods.len() {
         handle_event(&mut app, key_char('m')).await.unwrap();
     }
-    assert_eq!(app.tabs[app.active_tab].request.protocol, Protocol::WebSocket);
+    assert_eq!(
+        app.tabs[app.active_tab].request.protocol,
+        Protocol::WebSocket
+    );
 
     // WS → SSE
     handle_event(&mut app, key_char('m')).await.unwrap();
@@ -1657,7 +1638,7 @@ async fn method_cycle_includes_ws_sse() {
 #[tokio::test]
 async fn response_tabs_change_with_protocol() {
     use hitt::core::request::Protocol;
-    let (mut app, _tmp) = test_app();
+    let (_app, _tmp) = test_app();
 
     // HTTP tabs
     let http_tabs = ResponseTabKind::for_protocol(&Protocol::Http);
@@ -1843,7 +1824,9 @@ async fn cmd_newchain_creates_chain() {
     execute_command(&mut app, "newcol TestCol").await.unwrap();
     assert_eq!(app.collections.len(), 1);
 
-    execute_command(&mut app, "newchain Login Flow").await.unwrap();
+    execute_command(&mut app, "newchain Login Flow")
+        .await
+        .unwrap();
     assert_eq!(app.collections[0].chains.len(), 1);
     assert_eq!(app.collections[0].chains[0].name, "Login Flow");
     assert_eq!(
@@ -1860,7 +1843,12 @@ async fn cmd_newchain_no_collection_warns() {
         app.notification.as_ref().unwrap().kind,
         NotificationKind::Warning
     );
-    assert!(app.notification.as_ref().unwrap().message.contains("No collections"));
+    assert!(app
+        .notification
+        .as_ref()
+        .unwrap()
+        .message
+        .contains("No collections"));
 }
 
 #[tokio::test]
@@ -1879,7 +1867,12 @@ async fn cmd_addstep_adds_to_chain() {
     // Add step
     execute_command(&mut app, "addstep login").await.unwrap();
     assert_eq!(app.collections[0].chains[0].steps.len(), 1);
-    assert!(app.notification.as_ref().unwrap().message.contains(&req_name));
+    assert!(app
+        .notification
+        .as_ref()
+        .unwrap()
+        .message
+        .contains(&req_name));
 }
 
 #[tokio::test]
@@ -1887,12 +1880,19 @@ async fn cmd_addstep_request_not_found() {
     let (mut app, _tmp) = test_app();
     execute_command(&mut app, "newcol TestCol").await.unwrap();
     execute_command(&mut app, "newchain Flow").await.unwrap();
-    execute_command(&mut app, "addstep nonexistent").await.unwrap();
+    execute_command(&mut app, "addstep nonexistent")
+        .await
+        .unwrap();
     assert_eq!(
         app.notification.as_ref().unwrap().kind,
         NotificationKind::Warning
     );
-    assert!(app.notification.as_ref().unwrap().message.contains("not found"));
+    assert!(app
+        .notification
+        .as_ref()
+        .unwrap()
+        .message
+        .contains("not found"));
 }
 
 #[tokio::test]
@@ -1944,7 +1944,7 @@ async fn chain_sidebar_enter_starts_execution() {
 
 #[tokio::test]
 async fn cmd_importchain_creates_chain() {
-    let (mut app, tmp) = test_app();
+    let (mut app, _tmp) = test_app();
     execute_command(&mut app, "newcol TestAPI").await.unwrap();
 
     // Add requests that match the YAML fixture
@@ -1953,8 +1953,8 @@ async fn cmd_importchain_creates_chain() {
     app.collections[0].add_request(login);
     app.collections[0].add_request(get_user);
 
-    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/sample_chain.yaml");
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sample_chain.yaml");
     let cmd = format!("importchain {}", fixture.display());
     execute_command(&mut app, &cmd).await.unwrap();
 
@@ -1982,8 +1982,8 @@ async fn cmd_importchain_request_not_found() {
     let login = Request::new("login", HttpMethod::POST, "http://localhost/login");
     app.collections[0].add_request(login);
 
-    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/sample_chain.yaml");
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sample_chain.yaml");
     let cmd = format!("importchain {}", fixture.display());
     execute_command(&mut app, &cmd).await.unwrap();
 
@@ -1992,15 +1992,20 @@ async fn cmd_importchain_request_not_found() {
         app.notification.as_ref().unwrap().kind,
         NotificationKind::Error,
     );
-    assert!(app.notification.as_ref().unwrap().message.contains("get-user"));
+    assert!(app
+        .notification
+        .as_ref()
+        .unwrap()
+        .message
+        .contains("get-user"));
 }
 
 #[tokio::test]
 async fn cmd_importchain_no_collection() {
     let (mut app, _tmp) = test_app();
 
-    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/sample_chain.yaml");
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sample_chain.yaml");
     let cmd = format!("importchain {}", fixture.display());
     execute_command(&mut app, &cmd).await.unwrap();
 
@@ -2008,7 +2013,12 @@ async fn cmd_importchain_no_collection() {
         app.notification.as_ref().unwrap().kind,
         NotificationKind::Warning,
     );
-    assert!(app.notification.as_ref().unwrap().message.contains("No collections"));
+    assert!(app
+        .notification
+        .as_ref()
+        .unwrap()
+        .message
+        .contains("No collections"));
 }
 
 #[tokio::test]
@@ -2022,8 +2032,8 @@ async fn import_yaml_auto_detects_chain() {
     app.collections[0].add_request(get_user);
 
     // Use :import with a .yaml file that has a steps key — should auto-detect as chain
-    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/sample_chain.yaml");
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sample_chain.yaml");
     let cmd = format!("import {}", fixture.display());
     execute_command(&mut app, &cmd).await.unwrap();
 

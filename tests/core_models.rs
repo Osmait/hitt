@@ -41,6 +41,7 @@ fn request_builder_chain() {
 // ── HttpMethod ──────────────────────────────────────────────────────────────
 
 #[test]
+#[allow(deprecated)]
 fn http_method_from_str_all_valid() {
     let cases = vec![
         ("GET", HttpMethod::GET),
@@ -53,23 +54,26 @@ fn http_method_from_str_all_valid() {
         ("TRACE", HttpMethod::TRACE),
     ];
     for (s, expected) in cases {
-        assert_eq!(HttpMethod::from_str(s), Some(expected), "failed for {}", s);
+        assert_eq!(HttpMethod::from_str(s), Some(expected), "failed for {s}");
     }
 }
 
 #[test]
+#[allow(deprecated)]
 fn http_method_from_str_case_insensitive() {
     assert_eq!(HttpMethod::from_str("get"), Some(HttpMethod::GET));
     assert_eq!(HttpMethod::from_str("Post"), Some(HttpMethod::POST));
 }
 
 #[test]
+#[allow(deprecated)]
 fn http_method_from_str_invalid() {
     assert_eq!(HttpMethod::from_str("INVALID"), None);
     assert_eq!(HttpMethod::from_str(""), None);
 }
 
 #[test]
+#[allow(deprecated)]
 fn http_method_as_str_roundtrip() {
     for m in HttpMethod::all() {
         let s = m.as_str();
@@ -173,11 +177,7 @@ fn response_header_value_case_insensitive() {
 
 #[test]
 fn response_body_text_and_json() {
-    let resp = make_response(
-        200,
-        ResponseBody::Json(r#"{"name":"test"}"#.into()),
-        vec![],
-    );
+    let resp = make_response(200, ResponseBody::Json(r#"{"name":"test"}"#.into()), vec![]);
     assert_eq!(resp.body_text(), Some(r#"{"name":"test"}"#));
     let json = resp.body_json().unwrap();
     assert_eq!(json["name"], "test");
@@ -231,11 +231,19 @@ fn response_body_len() {
 #[test]
 fn response_size_format() {
     assert_eq!(
-        (ResponseSize { headers: 100, body: 400 }).format(),
+        (ResponseSize {
+            headers: 100,
+            body: 400
+        })
+        .format(),
         "500 B"
     );
     assert_eq!(
-        (ResponseSize { headers: 0, body: 2048 }).format(),
+        (ResponseSize {
+            headers: 0,
+            body: 2048
+        })
+        .format(),
         "2.0 KB"
     );
     assert_eq!(
@@ -281,11 +289,11 @@ fn collection_add_request_and_count() {
 fn collection_add_folder() {
     let mut c = Collection::new("Test");
     let folder = c.add_folder("Auth Endpoints");
-    folder.push(CollectionItem::Request(Request::new(
+    folder.push(CollectionItem::Request(Box::new(Request::new(
         "Login",
         HttpMethod::POST,
         "/login",
-    )));
+    ))));
     assert_eq!(c.items.len(), 1);
     assert!(c.items[0].is_folder());
     assert_eq!(c.request_count(), 1);
@@ -317,21 +325,19 @@ fn collection_find_request_mut() {
 #[test]
 fn collection_find_request_in_folder() {
     let mut c = Collection::new("Test");
-    let req = Request::new("Nested", HttpMethod::GET, "/nested");
-    let id = req.id;
     let folder = c.add_folder("Folder");
-    folder.push(CollectionItem::Request(Request::new(
+    folder.push(CollectionItem::Request(Box::new(Request::new(
         "Nested",
         HttpMethod::GET,
         "/nested",
-    )));
+    ))));
     // Get the actual ID of the request we just pushed
     let nested_id = match &c.items[0] {
         CollectionItem::Folder { items, .. } => match &items[0] {
             CollectionItem::Request(r) => r.id,
-            _ => panic!(),
+            CollectionItem::Folder { .. } => panic!(),
         },
-        _ => panic!(),
+        CollectionItem::Request(_) => panic!(),
     };
     assert!(c.find_request(&nested_id).is_some());
 }
@@ -341,11 +347,11 @@ fn collection_all_requests() {
     let mut c = Collection::new("Test");
     c.add_request(Request::new("R1", HttpMethod::GET, "/a"));
     let folder = c.add_folder("Folder");
-    folder.push(CollectionItem::Request(Request::new(
+    folder.push(CollectionItem::Request(Box::new(Request::new(
         "R2",
         HttpMethod::POST,
         "/b",
-    )));
+    ))));
     let reqs = c.all_requests();
     assert_eq!(reqs.len(), 2);
 }
@@ -354,7 +360,7 @@ fn collection_all_requests() {
 
 #[test]
 fn collection_item_helpers() {
-    let req = CollectionItem::Request(Request::new("Test", HttpMethod::GET, "/"));
+    let req = CollectionItem::Request(Box::new(Request::new("Test", HttpMethod::GET, "/")));
     assert_eq!(req.name(), "Test");
     assert!(!req.is_folder());
 
@@ -389,8 +395,14 @@ fn history_store_add_and_search() {
     let mut store = HistoryStore::new(100);
     assert!(store.is_empty());
 
-    store.add(HistoryEntry::new(HttpMethod::GET, "https://api.example.com/users"));
-    store.add(HistoryEntry::new(HttpMethod::POST, "https://api.example.com/posts"));
+    store.add(HistoryEntry::new(
+        HttpMethod::GET,
+        "https://api.example.com/users",
+    ));
+    store.add(HistoryEntry::new(
+        HttpMethod::POST,
+        "https://api.example.com/posts",
+    ));
     assert_eq!(store.len(), 2);
 
     let results = store.search("users");
@@ -412,7 +424,10 @@ fn history_store_get_by_id() {
 fn history_store_truncation() {
     let mut store = HistoryStore::new(3);
     for i in 0..5 {
-        store.add(HistoryEntry::new(HttpMethod::GET, format!("https://example.com/{}", i)));
+        store.add(HistoryEntry::new(
+            HttpMethod::GET,
+            format!("https://example.com/{i}"),
+        ));
     }
     assert_eq!(store.len(), 3);
 }

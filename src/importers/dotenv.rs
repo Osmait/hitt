@@ -39,20 +39,6 @@ pub fn dotenv_to_environment(name: impl Into<String>, content: &str) -> Result<E
     Ok(env)
 }
 
-/// Load multiple .env files with layered precedence (later files override earlier ones)
-pub fn load_layered(paths: &[&Path]) -> Result<HashMap<String, String>> {
-    let mut vars = HashMap::new();
-
-    for path in paths {
-        if path.exists() {
-            let layer = parse_dotenv_file(path)?;
-            vars.extend(layer);
-        }
-    }
-
-    Ok(vars)
-}
-
 fn parse_line(line: &str) -> Option<(String, String)> {
     // Handle export prefix
     let line = line.strip_prefix("export ").unwrap_or(line);

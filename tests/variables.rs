@@ -131,19 +131,11 @@ fn from_context_integration() {
     let mut dotenv = HashMap::new();
     dotenv.insert("db_host".to_string(), "localhost".to_string());
 
-    let resolver = VariableResolver::from_context(
-        None,
-        &collection_vars,
-        Some(&env),
-        Some(&dotenv),
-        None,
-    );
+    let resolver =
+        VariableResolver::from_context(None, &collection_vars, Some(&env), Some(&dotenv), None);
 
     // Collection var
-    assert_eq!(
-        resolver.resolve("{{base_url}}"),
-        "https://api.example.com"
-    );
+    assert_eq!(resolver.resolve("{{base_url}}"), "https://api.example.com");
     // Env var
     assert_eq!(resolver.resolve("{{token}}"), "env-token");
     // Dotenv var

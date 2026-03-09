@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
@@ -65,7 +64,7 @@ impl WsContent {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             WsContent::Text(s) => Some(s),
-            _ => None,
+            WsContent::Binary(_) => None,
         }
     }
 
@@ -94,6 +93,7 @@ pub enum WsEvent {
     Error(String),
 }
 
+#[allow(clippy::unused_async)]
 pub async fn connect(
     url: &str,
     headers: &[KeyValuePair],
@@ -102,13 +102,13 @@ pub async fn connect(
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<WsCommand>();
 
     let url = url.to_string();
-    let headers = headers.to_vec();
+    let _headers = headers.to_vec();
 
     tokio::spawn(async move {
         // Validate URI before connecting
         let url = url.trim().to_string();
         if let Err(e) = url.parse::<http::Uri>() {
-            let _ = event_tx.send(WsEvent::Error(format!("Invalid URI: {}", e)));
+            let _ = event_tx.send(WsEvent::Error(format!("Invalid URI: {e}")));
             return;
         }
 
@@ -127,14 +127,14 @@ pub async fn connect(
                             Ok(Message::Text(text)) => {
                                 let _ = event_tx_clone.send(WsEvent::MessageReceived(WsMessage {
                                     direction: MessageDirection::Received,
-                                    content: WsContent::Text(text.to_string()),
+                                    content: WsContent::Text(text.clone()),
                                     timestamp: Utc::now(),
                                 }));
                             }
                             Ok(Message::Binary(data)) => {
                                 let _ = event_tx_clone.send(WsEvent::MessageReceived(WsMessage {
                                     direction: MessageDirection::Received,
-                                    content: WsContent::Binary(data.to_vec()),
+                                    content: WsContent::Binary(data.clone()),
                                     timestamp: Utc::now(),
                                 }));
                             }
@@ -142,8 +142,6 @@ pub async fn connect(
                                 let _ = event_tx_clone.send(WsEvent::Disconnected);
                                 break;
                             }
-                            Ok(Message::Ping(_)) => {} // tungstenite auto-responds
-                            Ok(Message::Pong(_)) => {}
                             Err(e) => {
                                 let _ = event_tx_clone.send(WsEvent::Error(e.to_string()));
                                 break;
@@ -157,19 +155,19 @@ pub async fn connect(
                 while let Some(cmd) = cmd_rx.recv().await {
                     match cmd {
                         WsCommand::SendText(text) => {
-                            if let Err(e) = write.send(Message::Text(text.into())).await {
+                            if let Err(e) = write.send(Message::Text(text)).await {
                                 let _ = event_tx.send(WsEvent::Error(e.to_string()));
                                 break;
                             }
                         }
                         WsCommand::SendBinary(data) => {
-                            if let Err(e) = write.send(Message::Binary(data.into())).await {
+                            if let Err(e) = write.send(Message::Binary(data)).await {
                                 let _ = event_tx.send(WsEvent::Error(e.to_string()));
                                 break;
                             }
                         }
                         WsCommand::Ping => {
-                            if let Err(e) = write.send(Message::Ping(vec![].into())).await {
+                            if let Err(e) = write.send(Message::Ping(vec![])).await {
                                 let _ = event_tx.send(WsEvent::Error(e.to_string()));
                                 break;
                             }

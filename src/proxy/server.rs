@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::capture::{CaptureStore, CapturedRequest};
+use super::capture::CaptureStore;
 
 /// Proxy server state
 #[derive(Debug)]
@@ -23,7 +23,7 @@ impl ProxyServer {
     /// Start the proxy server
     /// NOTE: Full MITM proxy implementation requires the hudsucker crate.
     /// This is a placeholder that provides the interface.
-    pub async fn start(&mut self) -> anyhow::Result<()> {
+    pub fn start(&mut self) -> anyhow::Result<()> {
         self.active = true;
         tracing::info!("Proxy server started on port {}", self.port);
         // In a full implementation, this would start a hudsucker MITM proxy
@@ -31,7 +31,7 @@ impl ProxyServer {
         Ok(())
     }
 
-    pub async fn stop(&mut self) {
+    pub fn stop(&mut self) {
         self.active = false;
         tracing::info!("Proxy server stopped");
     }

@@ -14,11 +14,7 @@ pub fn import_postman_environment(content: &str) -> Result<Environment> {
         .values
         .iter()
         .map(|v| {
-            let is_secret = v
-                .value_type
-                .as_deref()
-                .map(|t| t == "secret")
-                .unwrap_or(false);
+            let is_secret = v.value_type.as_deref().is_some_and(|t| t == "secret");
             EnvironmentVariable {
                 key: v.key.clone(),
                 value: v.value.clone(),

@@ -1,9 +1,7 @@
 use anyhow::{bail, Result};
 use serde::Deserialize;
 
-use crate::core::chain::{
-    ChainStep, ExtractionSource, RequestChain, StepCondition, ValueExtraction,
-};
+use crate::core::chain::{ExtractionSource, RequestChain, StepCondition};
 use crate::core::collection::Collection;
 
 #[derive(Debug, Deserialize)]
@@ -53,12 +51,11 @@ pub fn import_chain(content: &str, collection: &Collection) -> Result<RequestCha
     for file_step in &file.steps {
         let request = all_requests.iter().find(|r| r.name == file_step.request);
 
-        let request_id = match request {
-            Some(r) => r.id,
-            None => {
-                not_found.push(file_step.request.clone());
-                continue;
-            }
+        let request_id = if let Some(r) = request {
+            r.id
+        } else {
+            not_found.push(file_step.request.clone());
+            continue;
         };
 
         let step = chain.add_step(request_id);
@@ -97,7 +94,7 @@ fn map_condition(cond: &ChainFileCondition) -> Result<StepCondition> {
             let value = cond
                 .value
                 .as_ref()
-                .and_then(|v| v.as_u64())
+                .and_then(serde_yaml::Value::as_u64)
                 .map(|v| v as u16);
             match value {
                 Some(code) => Ok(StepCondition::StatusEquals(code)),
@@ -113,7 +110,7 @@ fn map_condition(cond: &ChainFileCondition) -> Result<StepCondition> {
                 .value
                 .as_ref()
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
+                .map(std::string::ToString::to_string);
             match value {
                 Some(s) => Ok(StepCondition::BodyContains(s)),
                 None => bail!("body_contains condition requires a string 'value'"),
@@ -121,15 +118,15 @@ fn map_condition(cond: &ChainFileCondition) -> Result<StepCondition> {
         }
         "variable_equals" => match (&cond.name, &cond.value) {
             (Some(name), Some(value)) => {
-                let val_str = value
-                    .as_str()
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("{}", value.as_u64().unwrap_or(0)));
+                let val_str = value.as_str().map_or_else(
+                    || format!("{}", value.as_u64().unwrap_or(0)),
+                    std::string::ToString::to_string,
+                );
                 Ok(StepCondition::VariableEquals(name.clone(), val_str))
             }
             _ => bail!("variable_equals condition requires 'name' and 'value'"),
         },
-        other => bail!("Unknown condition type: '{}'", other),
+        other => bail!("Unknown condition type: '{other}'"),
     }
 }
 
@@ -148,7 +145,7 @@ fn map_extraction_source(ext: &ChainFileExtraction) -> Result<(ExtractionSource,
             None => bail!("cookie extraction requires 'name'"),
         },
         "status" => Ok((ExtractionSource::Status, String::new())),
-        other => bail!("Unknown extraction source: '{}'", other),
+        other => bail!("Unknown extraction source: '{other}'"),
     }
 }
 
@@ -157,7 +154,7 @@ pub fn looks_like_chain(content: &str) -> bool {
     // Quick check: try to parse as a generic YAML mapping and look for "steps"
     if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
         if let Some(map) = value.as_mapping() {
-            return map.contains_key(&serde_yaml::Value::String("steps".into()));
+            return map.contains_key(serde_yaml::Value::String("steps".into()));
         }
     }
     false

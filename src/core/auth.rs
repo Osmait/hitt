@@ -40,18 +40,6 @@ impl AuthConfig {
         }
     }
 
-    pub fn api_key(
-        key: impl Into<String>,
-        value: impl Into<String>,
-        location: ApiKeyLocation,
-    ) -> Self {
-        Self::ApiKey {
-            key: key.into(),
-            value: value.into(),
-            location,
-        }
-    }
-
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Bearer { .. } => "Bearer Token",

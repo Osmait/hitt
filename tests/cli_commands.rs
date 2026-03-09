@@ -17,8 +17,16 @@ fn test_config(tmp: &TempDir) -> AppConfig {
 fn setup_collection(config: &AppConfig, name: &str) -> Collection {
     let store = CollectionsStore::new(config.collections_dir.clone()).unwrap();
     let mut coll = Collection::new(name);
-    coll.add_request(Request::new("login", HttpMethod::POST, "http://localhost/login"));
-    coll.add_request(Request::new("get-user", HttpMethod::GET, "http://localhost/users/1"));
+    coll.add_request(Request::new(
+        "login",
+        HttpMethod::POST,
+        "http://localhost/login",
+    ));
+    coll.add_request(Request::new(
+        "get-user",
+        HttpMethod::GET,
+        "http://localhost/users/1",
+    ));
     store.save_collection(&coll).unwrap();
     coll
 }
@@ -137,7 +145,7 @@ async fn cli_create_saves_request() {
             collection: "My API".to_string(),
             header: vec!["Content-Type: application/json".to_string()],
             body: None,
-            body_type: "json".to_string(),
+            body_type: hitt::cli::BodyType::Json,
         },
         &config,
     )
@@ -165,7 +173,7 @@ async fn cli_create_new_collection() {
             collection: "Brand New".to_string(),
             header: vec![],
             body: Some(r#"{"key":"value"}"#.to_string()),
-            body_type: "json".to_string(),
+            body_type: hitt::cli::BodyType::Json,
         },
         &config,
     )
@@ -191,7 +199,7 @@ async fn cli_create_invalid_method() {
             collection: "Test".to_string(),
             header: vec![],
             body: None,
-            body_type: "json".to_string(),
+            body_type: hitt::cli::BodyType::Json,
         },
         &config,
     )
@@ -320,7 +328,7 @@ fn cli_send_parses_headers() {
     // Test the parse_headers helper indirectly via create
     // We verified header parsing works through the create test above.
     // Here we do a direct unit-style check by creating a request with headers.
-    let headers = vec![
+    let headers = [
         "Content-Type: application/json".to_string(),
         "Authorization:Bearer abc".to_string(),
         "X-Custom: value with spaces".to_string(),
