@@ -17,6 +17,31 @@ use super::sidebar::{build_sidebar_items, handle_sidebar_action, SidebarItem};
 
 #[allow(clippy::too_many_lines)]
 pub(super) async fn handle_normal_mode(app: &mut App, key: KeyEvent) -> Result<()> {
+    // ── Response filter input (intercepts keys while filter bar is active) ──
+    if app.response_filter_active {
+        match (key.modifiers, key.code) {
+            (KeyModifiers::NONE, KeyCode::Esc) => {
+                app.response_filter_active = false;
+                app.response_filter.clear();
+            }
+            (KeyModifiers::NONE, KeyCode::Enter) => {
+                // Confirm filter and exit filter input mode.
+                // Keep the filter text visible, navigate matches with n/N.
+                app.response_filter_active = false;
+            }
+            (KeyModifiers::NONE, KeyCode::Backspace) => {
+                app.response_filter.pop();
+                app.response_filter_match_idx = 0;
+            }
+            (KeyModifiers::NONE, KeyCode::Char(c)) => {
+                app.response_filter.push(c);
+                app.response_filter_match_idx = 0;
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     match (key.modifiers, key.code) {
         // ── Enter: Global → Panel mode; Panel → Send/Sidebar action ──
         (KeyModifiers::NONE, KeyCode::Enter) => {
@@ -29,17 +54,30 @@ pub(super) async fn handle_normal_mode(app: &mut App, key: KeyEvent) -> Result<(
             }
         }
 
-        // ── Esc: Panel → Global mode ────────────────────────────────
+        // ── Esc: Clear response filter, or Panel → Global mode ──────
         (KeyModifiers::NONE, KeyCode::Esc) => {
-            if app.nav_mode == NavMode::Panel {
+            if app.focus == FocusArea::ResponseBody && !app.response_filter.is_empty() {
+                app.response_filter.clear();
+                app.response_filter_match_idx = 0;
+            } else if app.nav_mode == NavMode::Panel {
                 app.nav_mode = NavMode::Global;
                 app.snap_focus_to_major_panel();
             }
         }
 
-        // ── Search ───────────────────────────────────────────────────
-        (KeyModifiers::NONE, KeyCode::Char('/' | 'p'))
-        | (KeyModifiers::CONTROL, KeyCode::Char('p')) => {
+        // ── Search / Response filter ────────────────────────────────
+        (KeyModifiers::NONE, KeyCode::Char('/')) => {
+            if app.focus == FocusArea::ResponseBody {
+                app.response_filter.clear();
+                app.response_filter_active = true;
+                app.response_filter_match_idx = 0;
+            } else {
+                app.mode = AppMode::Modal(ModalKind::Search);
+                app.search_query.clear();
+                app.search_results.clear();
+            }
+        }
+        (KeyModifiers::NONE | KeyModifiers::CONTROL, KeyCode::Char('p')) => {
             app.mode = AppMode::Modal(ModalKind::Search);
             app.search_query.clear();
             app.search_results.clear();
@@ -60,10 +98,14 @@ pub(super) async fn handle_normal_mode(app: &mut App, key: KeyEvent) -> Result<(
             app.close_tab();
         }
 
-        // ── Next / previous header tab ───────────────────────────────
+        // ── Next match (filter) or next tab ──────────────────────────
         (KeyModifiers::NONE, KeyCode::Char('n')) => {
-            app.next_tab();
-            app.response_scroll = 0;
+            if app.focus == FocusArea::ResponseBody && !app.response_filter.is_empty() {
+                app.response_filter_match_idx = app.response_filter_match_idx.saturating_add(1);
+            } else {
+                app.next_tab();
+                app.response_scroll = 0;
+            }
         }
         (KeyModifiers::NONE, KeyCode::Char('b')) => {
             app.prev_tab();
@@ -348,6 +390,13 @@ pub(super) async fn handle_normal_mode(app: &mut App, key: KeyEvent) -> Result<(
         (KeyModifiers::SHIFT, KeyCode::Char('G')) => {
             if app.focus == FocusArea::ResponseBody || app.focus == FocusArea::RequestBody {
                 app.response_scroll = usize::MAX / 2; // will be clamped by rendering
+            }
+        }
+
+        // ── Previous filter match ────────────────────────────────────
+        (KeyModifiers::SHIFT, KeyCode::Char('N')) => {
+            if app.focus == FocusArea::ResponseBody && !app.response_filter.is_empty() {
+                app.response_filter_match_idx = app.response_filter_match_idx.saturating_sub(1);
             }
         }
 

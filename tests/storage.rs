@@ -120,6 +120,8 @@ fn app_config_serialization_roundtrip() {
         collections_dir: std::path::PathBuf::from("/tmp/test"),
         editor: Some("vim".to_string()),
         vim_mode: false,
+        colors: None,
+        borders: None,
     };
 
     let toml_str = toml::to_string_pretty(&config).unwrap();

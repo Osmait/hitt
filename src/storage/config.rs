@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::core::constants::{DEFAULT_HISTORY_LIMIT, DEFAULT_THEME, DEFAULT_TIMEOUT_MS};
+use crate::ui::theme::{BorderOverride, ThemeOverride};
 
 /// A validated theme name wrapper.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +58,10 @@ pub struct AppConfig {
     pub collections_dir: PathBuf,
     pub editor: Option<String>,
     pub vim_mode: bool,
+    #[serde(default)]
+    pub colors: Option<ThemeOverride>,
+    #[serde(default)]
+    pub borders: Option<BorderOverride>,
 }
 
 impl Default for AppConfig {
@@ -72,6 +77,8 @@ impl Default for AppConfig {
             collections_dir: config_dir().join("collections"),
             editor: None,
             vim_mode: true,
+            colors: None,
+            borders: None,
         }
     }
 }

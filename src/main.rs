@@ -83,8 +83,14 @@ async fn main() -> Result<()> {
     // Initialize app
     let mut app = App::new(config)?;
 
-    // Load theme
-    if let Ok(theme) = ui::theme::Theme::load(app.config.theme.as_str()) {
+    // Load theme and apply config overrides
+    if let Ok(mut theme) = ui::theme::Theme::load(app.config.theme.as_str()) {
+        if let Some(ref colors) = app.config.colors {
+            theme.apply_overrides(colors);
+        }
+        if let Some(ref borders) = app.config.borders {
+            theme.apply_border_overrides(borders);
+        }
         app.theme = theme;
     }
 
