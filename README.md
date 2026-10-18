@@ -35,7 +35,7 @@ It is also an active work in progress. Some features are complete, some are part
 ### Collections, environments, and variables
 
 - Saved collections and nested folders
-- Request history
+- Request history, persisted to `history.json` (reopen an entry, or `:replay` it)
 - Collection variables and environment variables
 - Layered `.env` loading
 - `{{variable}}` interpolation across URL, headers, body, and auth fields
@@ -55,6 +55,7 @@ It is also an active work in progress. Some features are complete, some are part
 - JSON Schema validation
 - Side-by-side response diffing
 - Built-in load testing with latency percentiles (`p50`, `p90`, `p95`, `p99`)
+- Collection runner (`:run`, `R` on the sidebar, `hitt test`) with text / JSON / JUnit reports
 
 ### Real-time protocols
 
@@ -65,7 +66,7 @@ It is also an active work in progress. Some features are complete, some are part
 ### Import/export ecosystem
 
 - Import from cURL, Postman Collection v2.1, Postman Environment, OpenAPI 3.x, HAR, `.env`, and chain YAML
-- Export to cURL, Markdown API docs, Postman Collection v2.1, and Postman Environment
+- Export to cURL, Markdown API docs, Postman Collection v2.1, Postman Environment, and `.env`
 
 ### UX and developer ergonomics
 
@@ -94,7 +95,7 @@ It is also an active work in progress. Some features are complete, some are part
 | Raw text | Implemented | Custom content type supported |
 | `application/x-www-form-urlencoded` | Implemented | Executed by the HTTP client |
 | GraphQL | Implemented | Sent as JSON envelope with `query` and optional `variables` |
-| Multipart form-data | Partial | Present in the model/UI, not yet sent by the HTTP client |
+| Multipart form-data | Implemented | Text fields; a value starting with `@` sends a file from disk |
 | Binary file body | Partial | Present in the model/UI, not yet sent by the HTTP client |
 | Protobuf body | Partial | Present in the model/UI, not yet sent by the HTTP client |
 
@@ -116,7 +117,7 @@ It is also an active work in progress. Some features are complete, some are part
 | Postman Environment | Yes | Yes | Implemented |
 | OpenAPI 3.x | Yes | No | Import implemented, export planned |
 | HAR | Yes | No | Implemented |
-| `.env` | Yes | No | Implemented |
+| `.env` | Yes | Yes | Implemented (`:export file.env` writes the active environment) |
 | Chain YAML | Yes | No | Implemented |
 | Markdown API docs | No | Yes | Implemented |
 
@@ -134,7 +135,7 @@ It is also an active work in progress. Some features are complete, some are part
 ### Partial or in-progress
 
 - gRPC execution
-- Multipart, binary, and protobuf request body execution
+- Binary and protobuf request body execution
 - Full OAuth2 runtime token acquisition flow
 - Dedicated UI panels for some advanced features like load test results and protocol-specific views
 
@@ -142,7 +143,6 @@ It is also an active work in progress. Some features are complete, some are part
 
 - Proxy inspector with real MITM capture
 - OpenAPI export
-- Collection runner / batch assertion reporting
 - HTTP/2 and HTTP/3 support
 - Plugin system
 
@@ -164,7 +164,7 @@ cargo build --release
 ### Install locally
 
 ```bash
-cargo install --path .
+cargo install --path hitt-tui
 ```
 
 Or use the provided Make target:
@@ -197,7 +197,7 @@ cargo run -- send GET https://httpbin.org/get
 
 ```bash
 cargo run -- --collection path/to/collection.json
-cargo run -- --import tests/fixtures/petstore_openapi.yaml
+cargo run -- --import hitt-tui/tests/fixtures/petstore_openapi.yaml
 ```
 
 ### Load environments
@@ -244,6 +244,22 @@ hitt chain list --collection "Demo API"
 hitt chain run "User Signup Flow" --collection "Demo API"
 ```
 
+A chain step succeeds once its request completes, even with a 4xx/5xx status;
+each step's `status` is in the JSON output (see `docs/TESTING.md`). Chain names
+are unique within a collection: `hitt chain create` rejects a duplicate and
+`hitt chain import` renames it ("Flow (2)").
+
+### Run a collection's tests (CI)
+
+```bash
+hitt test "Demo API" --env dev
+hitt test "Demo API" --folder Users --bail
+hitt test "Demo API" --reporter junit --output report.xml
+```
+
+Sends every request in tree order, runs its assertions and exits non-zero if
+any request fails. Reporters: `text` (default), `json`, `junit`.
+
 ### Connect to WebSocket or SSE endpoints
 
 ```bash
@@ -255,11 +271,14 @@ hitt sse https://example.com/events --duration 10 --max-events 5
 
 The command palette exposes a large part of the workflow directly inside the TUI. Some useful examples:
 
-- `:import` / `:export`
-- `:newcol`, `:delcol`, `:save`
-- `:newenv`, `:env`, `:dupenv`, `:env-file`
-- `:chain`, `:newchain`, `:addstep`, `:importchain`
+- `:import [path]` (no path opens the import dialog, like `Ctrl+O`), `:export <path> [collection]`
+- `:newcol`, `:delcol`, `:save`, `:rename`
+- `:newenv`, `:env <name|none>`, `:dupenv`, `:renameenv`, `:delenv`, `:env-file`
+- `:envedit` (environment variables), `:colvars` (collection variables), `:addvar`
+- `:chain`, `:newchain`, `:addstep`, `:importchain` (chain names are unique per collection)
+- `:replay [n]`, `:clearhistory`
 - `:diff`, `:loadtest`, `:docs`, `:theme`
+- `:run [collection] [folder]`, `:runexport <path>` (collection runner; also `R` on the sidebar)
 - `:ws`, `:sse`, `:ws-disconnect`, `:sse-disconnect`
 
 For a larger command list and keybindings, see `ROADMAP.md`, `CONTRIBUTING.md`, and the in-app help modal.
@@ -270,11 +289,11 @@ For a larger command list and keybindings, see `ROADMAP.md`, `CONTRIBUTING.md`, 
 
 | Platform | Config/data path |
 | --- | --- |
-| Linux | `~/.config/hitt/` and `~/.local/share/hitt/` |
+| Linux | `~/.config/hitt/` |
 | macOS | `~/Library/Application Support/hitt/` |
 | Windows | `%APPDATA%\hitt\` |
 
-Collections and environments are stored in readable JSON files, and config is stored in TOML.
+Collections, environments and the request history (`history.json`) are stored in readable JSON files, and config is stored in TOML.
 
 Useful docs in this repository:
 
@@ -293,8 +312,8 @@ This repository includes reproducible Criterion benchmarks, profiling helpers, a
 
 The benchmark suite intentionally separates microbenchmarks from real network benchmarks:
 
-- `benches/core_bench.rs` measures local code paths such as variable resolution, cURL parsing/export, assertion execution, serialization, and OpenAPI import.
-- `benches/http_bench.rs` measures real HTTP requests against `https://httpbin.org`, which means results include network variability.
+- `hitt-core/benches/core_bench.rs` measures local code paths such as variable resolution, cURL parsing/export, assertion execution, serialization, and OpenAPI import.
+- `hitt-core/benches/http_bench.rs` measures real HTTP requests against `https://httpbin.org`, which means results include network variability.
 - `scripts/profile.sh` focuses on binary size, single-request timing, and simple sequential throughput.
 - `scripts/compare.sh` compares `hitt` against tools such as `curl`, `xh`, `httpie`, and `wget` when they are available locally.
 
@@ -302,13 +321,13 @@ The benchmark suite intentionally separates microbenchmarks from real network be
 
 ```bash
 # Core Criterion benchmarks
-cargo bench --bench core_bench
+cargo bench -p hitt-core --bench core_bench
 
 # Real-network HTTP Criterion benchmarks
-cargo bench --bench http_bench
+cargo bench -p hitt-core --bench http_bench
 
 # Run all benchmarks
-cargo bench
+cargo bench -p hitt-core
 
 # Open the Criterion HTML report after a benchmark run
 make bench-report

@@ -1,0 +1,20 @@
+name: Login Flow
+description: Authentication flow
+
+steps:
+  - request: login
+    extract:
+      - source: body
+        path: $.token
+        variable: auth_token
+    delay_ms: 500
+
+  - request: get-user
+    condition:
+      type: status_range
+      from: 200
+      to: 299
+    extract:
+      - source: header
+        name: X-Request-Id
+        variable: req_id
