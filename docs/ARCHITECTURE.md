@@ -18,7 +18,7 @@
 | JSON Queries | `jsonpath-rust` 0.7 |
 | JSON Schema | `jsonschema` 0.26 |
 | OpenAPI | `openapiv3` 2.x |
-| Base de datos | `sled` 0.34 |
+| Historial | `history.json` (serde_json) |
 | CLI | `clap` 4.x (derive) |
 | Errores | `thiserror` (dominio), `anyhow` (aplicación) |
 | Diff | `similar` 2.x |
@@ -116,7 +116,7 @@ graph TB
     subgraph storage["storage/"]
         config["config.rs<br/>AppConfig"]
         coll_store["collections_store.rs"]
-        history_db["history_db.rs<br/>sled"]
+        history_db["history_store.rs<br/>history.json"]
     end
 
     subgraph testing["testing/"]
@@ -258,7 +258,7 @@ stateDiagram-v2
     [*] --> Normal
     Normal --> Insert: i (en campo editable)
     Normal --> Command: :
-    Normal --> Modal: /, ?, Ctrl+I, Ctrl+X, etc.
+    Normal --> Modal: /, ?, Ctrl+O, Ctrl+X, etc.
     Normal --> ChainEditor: ejecutar chain
     Normal --> ProxyInspector: :proxy
 
@@ -569,7 +569,6 @@ struct ResponseSize { headers: usize, body: usize }
 | **JSONPath** | `jsonpath-rust` | Extracción de valores en aserciones y chains |
 | **JSON Schema** | `jsonschema` | Validación de schemas en aserciones |
 | **OpenAPI** | `openapiv3` | Parsing de especificaciones OpenAPI 3.x |
-| **Base de datos** | `sled` | Key-value embebido para historial |
 | **CLI** | `clap` | Parsing de argumentos CLI |
 | **IDs** | `uuid` | Identificadores únicos v4 |
 | **Tiempo** | `chrono` | Timestamps y fechas |

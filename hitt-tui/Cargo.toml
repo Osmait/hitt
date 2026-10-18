@@ -1,0 +1,66 @@
+[package]
+name = "hitt-tui"
+version = "0.1.0"
+edition = "2021"
+description = "Terminal UI and CLI for hitt"
+license = "MIT"
+
+[[bin]]
+name = "hitt"
+path = "src/main.rs"
+
+[dependencies]
+# Core
+hitt-core = { path = "../hitt-core" }
+
+# TUI
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+tui-textarea = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# Clipboard
+arboard = { workspace = true }
+
+# Fuzzy search
+fuzzy-matcher = { workspace = true }
+
+# Serialization (UI reads/writes a bit of config directly)
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+toml = { workspace = true }
+
+# HTTP (CLI runs some reqwest calls directly)
+reqwest = { workspace = true }
+
+# Protocols (CLI runs ws/sse directly)
+tokio-tungstenite = { workspace = true }
+reqwest-eventsource = { workspace = true }
+
+# Utils
+uuid = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+dirs = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+futures-util = { workspace = true }
+tokio-stream = { workspace = true }
+bytes = { workspace = true }
+http = { workspace = true }
+shell-words = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

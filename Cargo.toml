@@ -1,17 +1,14 @@
-[package]
-name = "hitt"
+[workspace]
+members = ["hitt-core", "hitt-tui", "hitt-ffi"]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
-description = "A fast, beautiful TUI alternative to Postman"
 license = "MIT"
 
-[dependencies]
-# TUI
-ratatui = "0.29"
-crossterm = "0.28"
-tui-textarea = "0.7"
-
-# Async
+[workspace.dependencies]
+# Async runtime
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "io-util"] }
 
 # HTTP
@@ -39,9 +36,6 @@ jsonpath-rust = "0.7"
 
 # JSON Schema (for validation)
 jsonschema = "0.26"
-
-# Syntax highlighting
-syntect = "5"
 
 # Diff
 similar = { version = "2", features = ["inline"] }
@@ -71,23 +65,16 @@ tokio-stream = "0.1"
 bytes = "1"
 tempfile = "3"
 
-[features]
-dhat-heap = []
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+tui-textarea = "0.7"
 
-[dev-dependencies]
-tempfile = "3"
-criterion = { version = "0.5", features = ["async_tokio"] }
+# Profiling
 dhat = "0.3"
+criterion = { version = "0.5", features = ["async_tokio"] }
 
-[[bench]]
-name = "http_bench"
-harness = false
-
-[[bench]]
-name = "core_bench"
-harness = false
-
-[lints.clippy]
+[workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 
 # Noisy or not applicable in this phase

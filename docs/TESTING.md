@@ -8,7 +8,7 @@ hitt incluye un motor de aserciones para validar responses y un framework de pru
 
 ## Motor de aserciones
 
-**Implementación:** `src/testing/assertion_engine.rs`
+**Implementación:** `hitt-core/src/testing/assertion_engine.rs`
 
 ### Tipos de aserción
 
@@ -147,12 +147,33 @@ pub enum ExtractionSource {
 }
 ```
 
+### 3. Status HTTP de un paso de chain
+
+Un paso de chain es **exitoso cuando el request se completa**, sea cual sea el status HTTP: un `500` o un `404` sin condición cuenta como éxito (los pasos no ejecutan las assertions de la request; eso lo hace el collection runner / `hitt test`). Un paso solo falla si el request no se pudo enviar (error de red, timeout, request borrada de la colección); entonces la chain se detiene.
+
+- `hitt chain run` incluye el `status` de cada paso en su JSON y sale con código 0 si ningún paso falló, aunque haya status ≥ 400:
+
+  ```json
+  { "chain": "Signup", "steps": [ { "step": 1, "request": "create-user", "status": 500, "timing_ms": 12, "extractions": {} } ], "variables": {} }
+  ```
+
+  Para tratar un 4xx/5xx como error en CI, revisar `steps[].status` (p. ej. `jq -e 'all(.steps[]; (.status // 0) < 400)'`).
+- Para no seguir después de un status de error, poner una `condition` en el paso siguiente (se evalúa contra la response del paso anterior); si no se cumple, el paso queda *skipped*:
+
+  ```yaml
+  - request: get-user
+    condition:
+      type: status_range
+      from: 200
+      to: 299
+  ```
+
 ---
 
 ## JSON Schema validation
 
 **Crate:** `jsonschema` 0.26
-**Implementación:** `src/testing/schema_validator.rs`
+**Implementación:** `hitt-core/src/testing/schema_validator.rs`
 
 ```rust
 pub fn validate(
@@ -168,7 +189,7 @@ Valida el body de la response contra un JSON Schema. Retorna errores detallados 
 ## Diff de responses
 
 **Crate:** `similar` 2.x
-**Implementación:** `src/testing/diff.rs`
+**Implementación:** `hitt-core/src/testing/diff.rs`
 
 Permite comparar dos responses línea por línea:
 
@@ -197,7 +218,7 @@ La UI muestra el diff en un visor side-by-side con líneas coloreadas (verde par
 
 ## Pruebas de carga
 
-**Implementación:** `src/testing/load_test.rs`
+**Implementación:** `hitt-core/src/testing/load_test.rs`
 
 ### Configuración
 
@@ -246,24 +267,87 @@ pub struct LatencyStats {
 
 ---
 
+## Collection runner
+
+**Implementación:** `hitt-core/src/testing/collection_runner.rs` (TUI: `hitt-tui/src/event/runner.rs` + `ui/widgets/runner.rs`; CLI: `hitt test`)
+
+Envía secuencialmente todas las requests de una colección (o de una carpeta) en orden de árbol (carpetas recursivas), ejecuta las assertions de cada una con `AssertionEngine::run_assertions` y produce un reporte.
+
+- **Variables**: `VariableResolver::from_context(None, &collection.variables, env, None, None)` — el environment activo sobrescribe las variables de colección.
+- **Auth heredada** (semántica Postman): una request sin auth o con `AuthConfig::Inherit` usa la auth de la carpeta más cercana que defina una, y si no la de la colección. `AuthConfig::None` = sin auth explícito.
+- **Protocolos**: WebSocket / SSE / gRPC se reportan como `skipped`.
+- **Estado por request**: `passed` (response + todas las assertions OK; sin assertions cuenta como passed), `failed` (alguna assertion falla), `error` (no se pudo enviar), `skipped`.
+
+```rust
+pub struct RunnerOptions {
+    pub folder: Option<String>,   // nombre, ruta "A/B" (case-insensitive) o id de carpeta
+    pub stop_on_failure: bool,    // --bail
+    pub delay_ms: u64,            // pausa entre requests
+    pub iterations: u32,          // repetir el plan N veces
+}
+
+pub async fn run_collection(
+    client: &HttpClient,
+    collection: &Collection,
+    environment: Option<&Environment>,
+    options: &RunnerOptions,
+    on_event: impl FnMut(&RunEvent),   // Started / RequestStarted / RequestFinished
+) -> Result<RunSummary>;               // Err solo si la carpeta no existe
+```
+
+`RunSummary` incluye `total`, `passed`, `failed`, `errors`, `skipped`, `assertions_passed`, `assertions_failed`, `duration_ms`, `bailed`, `cancelled` y `results` (por request: status HTTP, tiempo, URL resuelta, assertions, error). Writers: `to_json()`, `to_junit_xml()` (un `<testcase>` por request; `<failure>` / `<error>` / `<skipped>`), `to_text()`. `plan_requests()` lista lo que se ejecutaría.
+
+### Uso
+
+```
+:run                          # colección del sidebar / tab activo
+:run "Demo API" Users --bail  # carpeta, parar en el primer fallo
+:runexport report.xml         # JUnit XML (.json → JSON, .txt → texto)
+R                             # en el sidebar, sobre una colección o carpeta
+```
+
+```bash
+hitt test "Demo API" --env dev --folder Users --bail \
+  --reporter junit --output report.xml   # exit code != 0 si falla alguna request
+```
+
+Opciones de `hitt test`: `--folder`, `--env`, `--bail`, `--reporter text|json|junit`, `--output <ruta>`, `--delay <ms>`, `--iterations <n>`. Con `--output` (o un reporter distinto de `text`) el progreso por request se imprime en stderr.
+
+---
+
 ## Suite de tests del proyecto
 
 ### Estructura
 
-```
-tests/
-├── assertions.rs          # 27 tests — Motor de aserciones
-├── cli_commands.rs        # 14 tests — Comandos CLI
-├── core_models.rs         # 32 tests — Modelos de datos
-├── diff.rs                # 7 tests — Diff de texto
-├── event_commands.rs      # 126 tests — Eventos e interacción UI
-├── exporters.rs           # 13 tests — Exportadores
-├── importers.rs           # 39 tests — Importadores
-├── postman_roundtrip.rs   # 3 tests — Round-trip Postman
-├── storage.rs             # 8 tests — Persistencia
-└── variables.rs           # 16 tests — Resolución de variables
+Los tests de integración están en cada crate (los conteos cambian seguido; `cargo test --workspace` da el total):
 
-tests/fixtures/
+```
+hitt-core/tests/
+├── assertions.rs          # Motor de aserciones
+├── collection_runner.rs   # Collection runner contra un servidor local
+├── core_models.rs         # Modelos de datos, helpers (unique_name, query params)
+├── diff.rs                # Diff de texto
+├── exporters.rs           # Exportadores (cURL, Markdown)
+├── form_data.rs           # multipart form-data (valores `@archivo`)
+├── history.rs             # HistoryStore y history.json
+├── http_client.rs         # HttpClient contra un servidor local
+├── importers.rs           # Importadores (Postman, HAR, OpenAPI, cURL, .env, chains)
+├── postman_roundtrip.rs   # Round-trip Postman
+├── storage.rs             # CollectionsStore, AppConfig
+└── variables.rs           # Resolución de variables
+
+hitt-tui/tests/
+├── cli_commands.rs        # Subcomandos CLI (`hitt run`, `create`, `chain …`, `test`)
+├── collection_runner.rs   # `:run`, modal del runner, `:runexport`
+├── diff_selector.rs       # Modal de diff
+├── environments.rs        # :newenv / :renameenv / :delenv / modal de variables
+├── event_commands.rs      # Comandos `:` y teclas de normal mode
+├── history_replay.rs      # Sidebar History, `:replay`
+├── mouse.rs               # Clicks y scroll (hit-testing)
+├── qa_fixes.rs            # Regresiones encontradas en QA
+└── request_editors.rs     # Editores de params / headers / body / auth / assertions
+
+*/tests/fixtures/
 ├── sample.har                      # HAR de ejemplo
 ├── petstore_openapi.yaml           # Spec OpenAPI para testing
 ├── sample.env                      # Archivo .env de ejemplo
@@ -271,17 +355,6 @@ tests/fixtures/
 ├── sample_postman_collection.json  # Colección Postman v2.1
 └── sample_postman_environment.json # Environment Postman
 ```
-
-### Estadísticas
-
-| Métrica | Valor |
-|---------|-------|
-| Total de tests | ~285 |
-| Tests async (`#[tokio::test]`) | ~126 |
-| Tests sync (`#[test]`) | ~159 |
-| Archivo más grande | `event_commands.rs` (126 tests, 2046 líneas) |
-| Líneas de código de tests | ~4,246 |
-| Fixtures | 6 archivos |
 
 ### Patrones de testing
 
@@ -295,7 +368,7 @@ tests/fixtures/
 ### Ejecutar tests
 
 ```bash
-cargo test              # Todos los tests (~285)
-cargo test assertions   # Solo tests de aserciones
+cargo test --workspace             # Todos los tests
+cargo test -p hitt-core --test assertions   # Solo tests de aserciones
 cargo test -- --nocapture  # Con output visible
 ```

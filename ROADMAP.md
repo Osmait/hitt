@@ -11,9 +11,11 @@
 
 ## Phase 2 — Request Building
 - [x] Headers tab (add/edit/toggle key-value pairs)
-- [x] Query params tab
-- [x] Request body editor (JSON, form-data, urlencoded, raw, binary, GraphQL)
-- [x] Auth tab (Bearer, Basic, API Key)
+- [x] Query params tab (editable table, deduplicated against the URL query)
+- [x] Request body editor (JSON with formatting, raw, form-urlencoded, form-data, GraphQL + variables; bracketed paste)
+- [ ] Binary / protobuf body editing
+- [x] form-data bodies sent as multipart (text fields, `@path` file fields; cURL export uses `-F`)
+- [x] Auth tab (Bearer, Basic, API Key header/query, OAuth2, inherit; secrets masked)
 - [x] OAuth2 flow (client credentials, authorization code)
 - [x] Content-Type auto-detection
 - [x] Cookie jar (persistent cookies per collection)
@@ -22,13 +24,16 @@
 - [x] Collection tree in sidebar (create, rename, delete)
 - [x] Folder nesting with auth inheritance
 - [x] Save/load collections from disk (git-friendly pretty JSON)
-- [x] Request history (in-memory HistoryStore, searchable, timestamped)
-- [x] Collection-level variables
+- [x] Request history (HistoryStore, searchable, timestamped, `history_limit` enforced, persisted to `history.json` unless `persist_history = false`)
+- [x] Collection-level variables (`:addvar`, editable via `:colvars`)
 - [x] Config file (~/.config/hitt/config.toml)
 - [ ] Reorder / drag collections and requests
 
 ## Phase 4 — Environments & Variables
-- [x] Environment manager (create, edit, switch)
+- [x] Environment manager (create, edit variables in `E`/`:envedit`, switch, persisted to disk)
+- [x] Environment variables override collection variables (Postman semantics)
+- [x] Remember the last active environment between sessions (`last_environment` in config.toml)
+- [x] Rename / delete environments from the TUI (`:renameenv`, `:delenv`, `R` / `D` in the env editor)
 - [x] {{variable}} interpolation in URL, headers, body, auth fields
 - [x] Dynamic variables ($timestamp, $guid, $randomInt, $randomEmail)
 - [ ] Variable quick-view (preview resolved values inline)
@@ -62,14 +67,14 @@
 - [x] `:chain <name>` command (finds and executes chain)
 
 ## Phase 8 — Declarative Testing
-- [x] Assertion editor per request (UI panel)
+- [x] Assertion editor per request (add/edit/toggle/delete, 12 assertion kinds)
 - [x] Status assertions (equals, range)
 - [x] Body assertions (JSONPath exists, equals, type, contains)
 - [x] Header assertions (exists, equals)
 - [x] Performance assertions (response time, size)
 - [x] JSON Schema validation
 - [x] Assertion results display (pass/fail with actual vs expected)
-- [ ] Run all assertions in collection (batch test report / collection runner)
+- [x] Run all assertions in collection (batch test report / collection runner: `:run`, sidebar `R`, `hitt test`)
 
 ## Phase 9 — Real-Time Protocols
 
@@ -102,6 +107,7 @@
 
 ## Phase 10 — Advanced Features
 - [x] Response diffing — side-by-side comparison engine
+- [x] Diff selector UI (pick 2 responses from tabs/history; side-by-side or unified view)
 - [x] Load testing — N requests at C concurrency, latency stats (p50/p90/p95/p99)
 - [ ] Load test results UI panel (`loadtest_panel.rs`)
 - [x] `:diff` command — opens diff selector modal
@@ -115,7 +121,8 @@
 - [x] Fuzzy search — across all requests, collections, history
 - [ ] Response body search (regex search within response)
 - [x] Copy as curl — one-key copy
-- [x] Request timing waterfall (DNS, TCP, TLS, TTFB, download)
+- [x] Request timing: TTFB, download, total
+- [ ] DNS / TCP / TLS phase timing (shown as n/a; reqwest doesn't expose them)
 - [x] Resize-responsive layouts
 - [x] Help modal — keybinding reference
 
@@ -133,6 +140,8 @@
 - [x] `:newcol <name>` — Create collection
 - [x] `:newenv <name>` — Create environment
 - [x] `:dupenv [name]` — Duplicate environment
+- [x] `:renameenv <name>` — Rename active environment
+- [x] `:delenv [name]` — Delete environment (with confirmation)
 - [x] `:env <name>` — Switch environment
 - [x] `:import [path]` — Import file
 - [x] `:export [path]` — Export file
@@ -147,8 +156,10 @@
 - [x] `:rename <name>` — Rename request
 - [x] `:addvar <key> <val>` — Add collection variable
 - [x] `:clearhistory` — Clear history
+- [x] `:replay [n]` — Replay history entry (1 = newest)
 - [x] `:help` — Show help
-- [x] `:q` / `:quit` — Quit
+- [x] `:q` / `:quit` — Quit (asks if tabs have unsaved changes; `:q!` forces)
+- [x] `:envedit` / `:colvars` — Edit environment / collection variables
 - [ ] `:proxy [port]` — Start/stop proxy inspector
 
 ## Keybindings (all implemented)
@@ -157,9 +168,13 @@
 - [x] `Ctrl+P` — Fuzzy search requests
 - [x] `Ctrl+E` — Switch environment
 - [x] `Ctrl+N` — New tab
-- [x] `Ctrl+I` — Import
+- [x] `Ctrl+O` — Import (Ctrl+I is indistinguishable from Tab in terminals)
 - [x] `Ctrl+X` — Export
 - [x] `Ctrl+C` — Quit
+- [x] `Ctrl+D` / `Ctrl+U` — Half page down/up
+- [x] `[` / `]` — Switch sidebar section (Collections / Chains / History)
+- [x] `E` — Edit environment variables
+- [x] `Esc` — Cancel in-flight request / WS-SSE handshake
 
 ## Infrastructure
 - [x] `/tests/` directory with integration tests (300+ tests across 11 files)
@@ -186,5 +201,5 @@
 - [ ] Certificate pinning / custom CA
 - [ ] HTTP/2 and HTTP/3 support
 - [ ] Protobuf binary body inspector
-- [ ] Request replay from history
-- [ ] Collection runner (run all requests sequentially with reporting)
+- [x] Request replay from history (`Enter` reopens snapshot + stored response, `r`/`Ctrl+R` or `:replay [n]` resends)
+- [x] Collection runner (run all requests sequentially with reporting: live TUI view, JSON / JUnit XML export, `hitt test` for CI)

@@ -20,7 +20,7 @@ echo ""
 # Build release if needed
 if [ ! -f "$HITT" ]; then
     echo "Building release binary..."
-    cargo build --release --quiet
+    cargo build --release -p hitt-tui --quiet
 fi
 
 # ═══════════════════════════════════════════════════════════════════
